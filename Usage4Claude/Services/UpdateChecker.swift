@@ -15,8 +15,9 @@ import AppKit
 class UpdateChecker {
     // MARK: - Properties
     
-    /// GitHub 仓库所有者
-    private let repoOwner = "f-is-h"
+    /// GitHub 仓库所有者 — fork 운영자 (KimSoungRyoul)을 바라본다.
+    /// 원본 upstream(f-is-h)이 아닌 fork 의 release를 기준으로 업데이트를 확인한다.
+    private let repoOwner = "KimSoungRyoul"
     /// GitHub 仓库名称
     private let repoName = "Usage4Claude"
     
