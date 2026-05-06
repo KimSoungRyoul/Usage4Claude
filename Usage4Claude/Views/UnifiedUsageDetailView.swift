@@ -37,7 +37,8 @@ struct UnifiedUsageDetailView: View {
                         SecondaryAccountMiniCard(
                             label: account.displayName,
                             data: extraClaudeUsage[account.id],
-                            isClaude: true
+                            isClaude: true,
+                            extraUsageMode: settings.resolvedExtraUsageDisplayMode(for: account.id)
                         )
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
@@ -51,7 +52,8 @@ struct UnifiedUsageDetailView: View {
                         SecondaryAccountMiniCard(
                             label: account.displayName,
                             codexData: extraCodexUsage[account.id],
-                            isClaude: false
+                            isClaude: false,
+                            extraUsageMode: settings.resolvedExtraUsageDisplayMode(for: account.id)
                         )
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
@@ -94,6 +96,7 @@ private struct SecondaryAccountMiniCard: View {
     var data: UsageData? = nil
     var codexData: CodexUsageData? = nil
     let isClaude: Bool
+    let extraUsageMode: ExtraUsageDisplayMode
 
     var body: some View {
         HStack(spacing: 12) {
@@ -155,8 +158,11 @@ private struct SecondaryAccountMiniCard: View {
             if let sonnet = data.sonnet {
                 MetricChip(label: "Sonnet", value: "\(Int(sonnet.percentage))%", color: .blue)
             }
-            if let extra = data.extraUsage, extra.enabled, let pct = extra.percentage {
-                MetricChip(label: "$", value: "\(Int(pct))%", color: .pink)
+            if let extra = data.extraUsage, extra.enabled {
+                extraUsageChip(percentage: extra.percentage,
+                               used: extra.used,
+                               currency: extra.currencySymbol,
+                               color: .pink)
             }
         }
     }
@@ -172,11 +178,40 @@ private struct SecondaryAccountMiniCard: View {
                 MetricChip(label: "7d", value: "\(Int(secondary.percentage))%",
                            color: Color(red: 96/255.0, green: 165/255.0, blue: 250/255.0))
             }
-            if let extra = data.extraUsage, extra.enabled, let pct = extra.percentage {
-                MetricChip(label: "$", value: "\(Int(pct))%",
-                           color: Color(red: 245/255.0, green: 158/255.0, blue: 11/255.0))
+            if let extra = data.extraUsage, extra.enabled {
+                extraUsageChip(percentage: extra.percentage,
+                               used: nil,
+                               currency: "$",
+                               color: Color(red: 245/255.0, green: 158/255.0, blue: 11/255.0))
             }
         }
+    }
+
+    /// extraUsageMode에 맞춰 라벨/값 형태를 분기 — `$ 10%` 처럼 통화기호와 % 가 같이 노출되는 일이 없도록.
+    @ViewBuilder
+    private func extraUsageChip(percentage: Double?, used: Double?, currency: String, color: Color) -> some View {
+        switch extraUsageMode {
+        case .amount:
+            if let used {
+                // 금액 모드: 라벨 없이 통화 + 사용 금액 (소수점 1자리)
+                MetricChip(label: "", value: "\(currency)\(formatAmount(used))", color: color)
+            } else if let percentage {
+                // used 정보 없으면 % 로 fallback (Codex 같은 경우)
+                MetricChip(label: "", value: "\(Int(percentage))%", color: color)
+            }
+        case .percent:
+            if let percentage {
+                // 백분율 모드: $ 라벨 없이 % 만
+                MetricChip(label: "Extra", value: "\(Int(percentage))%", color: color)
+            }
+        }
+    }
+
+    private func formatAmount(_ value: Double) -> String {
+        if value >= 100 {
+            return String(Int(value.rounded()))
+        }
+        return String(format: "%.1f", value)
     }
 }
 
@@ -187,9 +222,11 @@ private struct MetricChip: View {
 
     var body: some View {
         HStack(spacing: 3) {
-            Text(label)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundColor(.secondary)
+            if !label.isEmpty {
+                Text(label)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.secondary)
+            }
             Text(value)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(color)
