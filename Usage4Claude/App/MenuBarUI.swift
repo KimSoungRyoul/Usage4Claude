@@ -631,7 +631,8 @@ class MenuBarUI {
         }
     }
 
-    /// compact: "K1: 9% K2: 11% Cx: 42%" — 각 계정 최댓값 1개만, 가로 나열
+    /// compact: 활성 계정은 값만 (헤더에 이름 노출), 보조 계정은 짧은 라벨 + 값
+    /// 메뉴바 폭이 한정적이므로 활성 계정 라벨은 생략해 다른 계정이 잘리지 않게 한다.
     private func renderCompactMultiAccount(
         button: NSStatusBarButton,
         usageData: UsageData?,
@@ -642,9 +643,9 @@ class MenuBarUI {
     ) -> NSImage {
         var items: [(label: String, value: String, color: NSColor)] = []
 
-        if let active = settings.currentAccount, let data = usageData {
+        if let data = usageData {
             let (val, color) = compactValue(for: data, button: button)
-            items.append((short(active.displayName), val, color))
+            items.append(("", val, color))  // 활성 Claude — 라벨 생략
         }
         for account in settings.secondaryClaudeAccounts {
             if let data = extraClaudeUsage[account.id] {
@@ -652,9 +653,9 @@ class MenuBarUI {
                 items.append((short(account.displayName), val, color))
             }
         }
-        if let active = settings.currentCodexAccount, let data = codexUsageData {
+        if let data = codexUsageData {
             let (val, color) = compactValue(forCodex: data, button: button)
-            items.append((short(active.displayName), val, color))
+            items.append(("", val, color))  // 활성 Codex — 라벨 생략
         }
         for account in settings.secondaryCodexAccounts {
             if let data = extraCodexUsage[account.id] {
@@ -765,10 +766,11 @@ class MenuBarUI {
         return ("—", NSColor.secondaryLabelColor)
     }
 
-    /// 계정명 짧게 (8자 초과면 잘라서)
+    /// 계정명을 메뉴바용으로 짧게 (5자 초과면 잘라서)
+    /// 메뉴바 폭이 매우 한정적이라 너무 길면 값까지 macOS가 잘라낸다.
     private func short(_ name: String) -> String {
-        if name.count <= 8 { return name }
-        return String(name.prefix(7)) + "…"
+        if name.count <= 5 { return name }
+        return String(name.prefix(4)) + "…"
     }
 
     /// 清除图标缓存
