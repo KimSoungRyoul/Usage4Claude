@@ -643,23 +643,23 @@ class MenuBarUI {
     ) -> NSImage {
         var items: [(label: String, value: String, color: NSColor)] = []
 
-        if let data = usageData {
-            let (val, color) = compactValue(for: data, button: button)
+        if let data = usageData, let activeId = settings.currentAccountId {
+            let (val, color) = compactValue(for: data, accountId: activeId, button: button)
             items.append(("", val, color))  // 활성 Claude — 라벨 생략
         }
         for account in settings.secondaryClaudeAccounts {
             if let data = extraClaudeUsage[account.id] {
-                let (val, color) = compactValue(for: data, button: button)
+                let (val, color) = compactValue(for: data, accountId: account.id, button: button)
                 items.append((short(account.displayName), val, color))
             }
         }
-        if let data = codexUsageData {
-            let (val, color) = compactValue(forCodex: data, button: button)
+        if let data = codexUsageData, let activeId = settings.currentCodexAccountId {
+            let (val, color) = compactValue(forCodex: data, accountId: activeId, button: button)
             items.append(("", val, color))  // 활성 Codex — 라벨 생략
         }
         for account in settings.secondaryCodexAccounts {
             if let data = extraCodexUsage[account.id] {
-                let (val, color) = compactValue(forCodex: data, button: button)
+                let (val, color) = compactValue(forCodex: data, accountId: account.id, button: button)
                 items.append((short(account.displayName), val, color))
             }
         }
@@ -687,13 +687,13 @@ class MenuBarUI {
         var trailingItems: [(label: String, value: String, color: NSColor)] = []
         for account in settings.secondaryClaudeAccounts {
             if let data = extraClaudeUsage[account.id] {
-                let (val, color) = compactValue(for: data, button: button)
+                let (val, color) = compactValue(for: data, accountId: account.id, button: button)
                 trailingItems.append((short(account.displayName), val, color))
             }
         }
         for account in settings.secondaryCodexAccounts {
             if let data = extraCodexUsage[account.id] {
-                let (val, color) = compactValue(forCodex: data, button: button)
+                let (val, color) = compactValue(forCodex: data, accountId: account.id, button: button)
                 trailingItems.append((short(account.displayName), val, color))
             }
         }
@@ -723,13 +723,13 @@ class MenuBarUI {
         var dotColors: [NSColor] = []
         for account in settings.secondaryClaudeAccounts {
             if let data = extraClaudeUsage[account.id] {
-                let (_, color) = compactValue(for: data, button: button)
+                let (_, color) = compactValue(for: data, accountId: account.id, button: button)
                 dotColors.append(color)
             }
         }
         for account in settings.secondaryCodexAccounts {
             if let data = extraCodexUsage[account.id] {
-                let (_, color) = compactValue(forCodex: data, button: button)
+                let (_, color) = compactValue(forCodex: data, accountId: account.id, button: button)
                 dotColors.append(color)
             }
         }
@@ -739,31 +739,64 @@ class MenuBarUI {
     }
 
     /// 한 계정의 최대 사용률 + 라벨/색 추출 (Claude 용)
-    private func compactValue(for data: UsageData, button: NSStatusBarButton) -> (String, NSColor) {
-        let candidates: [(Double, NSColor)] = [
+    /// ExtraUsage가 최댓값이고 사용자가 amount 모드를 골랐다면 "$10" 형태로 반환한다.
+    private func compactValue(for data: UsageData, accountId: UUID?, button: NSStatusBarButton) -> (String, NSColor) {
+        // 5h/7d/opus/sonnet vs extraUsage 분리해서 비교
+        let limits: [(Double, NSColor)] = [
             (data.fiveHour?.percentage ?? -1, UsageColorScheme.fiveHourColorAdaptive(data.fiveHour?.percentage ?? 0, for: button)),
             (data.sevenDay?.percentage ?? -1, UsageColorScheme.sevenDayColorAdaptive(data.sevenDay?.percentage ?? 0, for: button)),
             (data.opus?.percentage ?? -1, UsageColorScheme.opusWeeklyColorAdaptive(data.opus?.percentage ?? 0, for: button)),
-            (data.sonnet?.percentage ?? -1, UsageColorScheme.sonnetWeeklyColorAdaptive(data.sonnet?.percentage ?? 0, for: button)),
-            (data.extraUsage?.percentage ?? -1, UsageColorScheme.fiveHourColorAdaptive(data.extraUsage?.percentage ?? 0, for: button))
+            (data.sonnet?.percentage ?? -1, UsageColorScheme.sonnetWeeklyColorAdaptive(data.sonnet?.percentage ?? 0, for: button))
         ]
-        let max = candidates.max { $0.0 < $1.0 }
-        if let m = max, m.0 >= 0 {
-            return ("\(Int(m.0))%", m.1)
+        let limitMax = limits.max { $0.0 < $1.0 }
+        let extraPct = data.extraUsage?.enabled == true ? (data.extraUsage?.percentage ?? -1) : -1
+        let extraColor = UsageColorScheme.fiveHourColorAdaptive(extraPct >= 0 ? extraPct : 0, for: button)
+
+        let limitTopPct = limitMax?.0 ?? -1
+        let limitTopColor = limitMax?.1 ?? NSColor.secondaryLabelColor
+
+        // Enterprise처럼 5h/7d 등이 모두 nil이고 extraUsage만 있는 경우 → extra 표시
+        // 일반적으로는 max(limit, extra) 비교
+        let useExtra = extraPct > limitTopPct
+        if useExtra && extraPct >= 0 {
+            // amount 모드면 "$10" 포맷 사용 (used + currencySymbol 있을 때)
+            let mode = settings.resolvedExtraUsageDisplayMode(for: accountId)
+            if mode == .amount,
+               let extra = data.extraUsage,
+               let used = extra.used {
+                return ("\(extra.currencySymbol)\(formatAmount(used))", extraColor)
+            }
+            return ("\(Int(extraPct))%", extraColor)
+        }
+        if limitTopPct >= 0 {
+            return ("\(Int(limitTopPct))%", limitTopColor)
         }
         return ("—", NSColor.secondaryLabelColor)
     }
 
     /// Codex 한 계정의 최대 사용률 + 색
-    private func compactValue(forCodex data: CodexUsageData, button: NSStatusBarButton) -> (String, NSColor) {
-        let primary = data.primary?.percentage
-        let secondary = data.secondary?.percentage
-        let extra = data.extraUsage?.percentage
-        let max = [primary, secondary, extra].compactMap { $0 }.max() ?? -1
-        if max >= 0 {
-            return ("\(Int(max))%", UsageColorScheme.fiveHourColorAdaptive(max, for: button))
+    private func compactValue(forCodex data: CodexUsageData, accountId: UUID?, button: NSStatusBarButton) -> (String, NSColor) {
+        let primary = data.primary?.percentage ?? -1
+        let secondary = data.secondary?.percentage ?? -1
+        let extra = data.extraUsage?.enabled == true ? (data.extraUsage?.percentage ?? -1) : -1
+        let limitMax = max(primary, secondary)
+        let useExtra = extra > limitMax
+        if useExtra && extra >= 0 {
+            // Codex extra는 used 정보가 없으니 percent 모드로 fallback
+            return ("\(Int(extra))%", UsageColorScheme.fiveHourColorAdaptive(extra, for: button))
+        }
+        if limitMax >= 0 {
+            return ("\(Int(limitMax))%", UsageColorScheme.fiveHourColorAdaptive(limitMax, for: button))
         }
         return ("—", NSColor.secondaryLabelColor)
+    }
+
+    /// "$10" 또는 "$10.5" 같은 짧은 amount 포맷
+    private func formatAmount(_ value: Double) -> String {
+        if value >= 100 {
+            return String(Int(value.rounded()))
+        }
+        return String(format: "%.1f", value)
     }
 
     /// 계정명을 메뉴바용으로 짧게 (5자 초과면 잘라서)
