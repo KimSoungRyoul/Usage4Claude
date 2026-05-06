@@ -21,7 +21,6 @@
 
 </div>
 
-<img width="291" height="389" alt="스크린샷 2026-05-06 오후 1 17 53" src="https://github.com/user-attachments/assets/6474c68b-7a91-4ee2-8fd0-56f4248a2ba3" />
 
 
 
