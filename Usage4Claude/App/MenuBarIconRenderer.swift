@@ -38,12 +38,31 @@ class MenuBarIconRenderer {
     ///   - hasUpdate: 是否有可用更新
     ///   - button: 状态栏按钮（用于获取外观模式）
     /// - Returns: 生成的图标图像
+    /// .extraUsage compact 라벨을 외부에서 override (secondary status item 용)
+    /// nil 이면 settings.currentAccountName 사용
+    private var accountLabelOverride: String?
+    /// 메뉴바 아이콘 스타일 override (secondary status item 이 별도 스타일 사용 시)
+    private var styleOverride: MenuBarIconStyle?
+
+    /// 현재 활성 스타일 (override 가 있으면 그것, 없으면 settings.menuBarIconStyle)
+    private var activeStyle: MenuBarIconStyle {
+        styleOverride ?? settings.menuBarIconStyle
+    }
+
     func createIcon(
         usageData: UsageData?,
         codexUsageData: CodexUsageData? = nil,
         hasUpdate: Bool,
-        button: NSStatusBarButton?
+        button: NSStatusBarButton?,
+        accountLabelOverride: String? = nil,
+        styleOverride: MenuBarIconStyle? = nil
     ) -> NSImage {
+        self.accountLabelOverride = accountLabelOverride
+        self.styleOverride = styleOverride
+        defer {
+            self.accountLabelOverride = nil
+            self.styleOverride = nil
+        }
         // 确定单色/彩色模式
         let isMonochrome: Bool
         if let data = usageData {
@@ -540,33 +559,51 @@ class MenuBarIconRenderer {
         // 在智能模式下，数据为 nil 时返回 nil
         let showPlaceholder = settings.displayMode == .custom
 
+        let iconSize = NSSize(width: 18, height: 18)
+
         switch type {
         case .fiveHour:
             let percentage = data.fiveHour?.percentage ?? (showPlaceholder ? 0 : nil)
             guard let percentage = percentage else { return nil }
+            if activeStyle == .compact {
+                let color = UsageColorScheme.fiveHourColorAdaptive(percentage, for: button)
+                return ShapeIconRenderer.createCompactIcon(label: "5h", value: "\(Int(percentage))%", valueColor: color, isMonochrome: isMonochrome)
+            }
             if isMonochrome {
-                return createCircleTemplateImage(percentage: percentage, size: NSSize(width: 18, height: 18), button: button, removeBackground: true)
+                return createCircleTemplateImage(percentage: percentage, size: iconSize, button: button, removeBackground: true)
             } else {
-                return createCircleImage(percentage: percentage, size: NSSize(width: 18, height: 18), button: button, removeBackground: removeBackground)
+                return createCircleImage(percentage: percentage, size: iconSize, button: button, removeBackground: removeBackground)
             }
 
         case .sevenDay:
             let percentage = data.sevenDay?.percentage ?? (showPlaceholder ? 0 : nil)
             guard let percentage = percentage else { return nil }
+            if activeStyle == .compact {
+                let color = UsageColorScheme.sevenDayColorAdaptive(percentage, for: button)
+                return ShapeIconRenderer.createCompactIcon(label: "7d", value: "\(Int(percentage))%", valueColor: color, isMonochrome: isMonochrome)
+            }
             if isMonochrome {
-                return createCircleTemplateImage(percentage: percentage, size: NSSize(width: 18, height: 18), useSevenDayStyle: true, button: button, removeBackground: true)
+                return createCircleTemplateImage(percentage: percentage, size: iconSize, useSevenDayStyle: true, button: button, removeBackground: true)
             } else {
-                return createCircleImage(percentage: percentage, size: NSSize(width: 18, height: 18), useSevenDayColor: true, button: button, removeBackground: removeBackground)
+                return createCircleImage(percentage: percentage, size: iconSize, useSevenDayColor: true, button: button, removeBackground: removeBackground)
             }
 
         case .opusWeekly:
             let percentage = data.opus?.percentage ?? (showPlaceholder ? 0 : nil)
             guard let percentage = percentage else { return nil }
+            if activeStyle == .compact {
+                let color = UsageColorScheme.opusWeeklyColorAdaptive(percentage, for: button)
+                return ShapeIconRenderer.createCompactIcon(label: "Opus", value: "\(Int(percentage))%", valueColor: color, isMonochrome: isMonochrome)
+            }
             return ShapeIconRenderer.createVerticalRectangleIcon(percentage: percentage, isMonochrome: isMonochrome, button: button, removeBackground: removeBackground)
 
         case .sonnetWeekly:
             let percentage = data.sonnet?.percentage ?? (showPlaceholder ? 0 : nil)
             guard let percentage = percentage else { return nil }
+            if activeStyle == .compact {
+                let color = UsageColorScheme.sonnetWeeklyColorAdaptive(percentage, for: button)
+                return ShapeIconRenderer.createCompactIcon(label: "Sonnet", value: "\(Int(percentage))%", valueColor: color, isMonochrome: isMonochrome)
+            }
             return ShapeIconRenderer.createHorizontalRectangleIcon(percentage: percentage, isMonochrome: isMonochrome, button: button, removeBackground: removeBackground)
 
         case .extraUsage:
@@ -579,7 +616,37 @@ class MenuBarIconRenderer {
                 percentage = nil
             }
             guard let percentage = percentage else { return nil }
-            return ShapeIconRenderer.createHexagonIcon(percentage: percentage, isMonochrome: isMonochrome, button: button, removeBackground: removeBackground)
+
+            // 컴팩트 스타일: 위 — 계정명, 아래 — 사용량 (시스템 모니터 풍)
+            // 색상: 사용량(percentage)에 따라 초록 → 노랑 → 빨강
+            if activeStyle == .compact {
+                let label = accountLabelOverride ?? settings.currentAccountName ?? "Claude"
+                let value: String = {
+                    let pctPart = "\(Int(percentage))%"
+                    if settings.extraUsageDisplayMode == .amount,
+                       let extra = data.extraUsage,
+                       extra.enabled,
+                       let used = extra.used {
+                        return "\(extra.currencySymbol)\(Int(used.rounded()))(\(pctPart))"
+                    }
+                    return pctPart
+                }()
+                // 5시간 한도와 동일한 그린→옐로→레드 그라데이션 사용
+                let color = UsageColorScheme.fiveHourColorAdaptive(percentage, for: button)
+                return ShapeIconRenderer.createCompactIcon(label: label, value: value, valueColor: color, isMonochrome: isMonochrome)
+            }
+
+            // 도형 스타일 (기본): hexagon — amount 모드면 "$26" 같은 금액, 아니면 백분율
+            let amountText: String? = {
+                guard settings.extraUsageDisplayMode == .amount,
+                      let extra = data.extraUsage,
+                      extra.enabled,
+                      let used = extra.used else {
+                    return nil
+                }
+                return "\(extra.currencySymbol)\(Int(used.rounded()))"
+            }()
+            return ShapeIconRenderer.createHexagonIcon(percentage: percentage, isMonochrome: isMonochrome, button: button, removeBackground: removeBackground, displayText: amountText)
 
         case .codexPrimary, .codexSecondary, .codexExtraUsage:
             // Codex 数据在 Phase 4 通过 createCodexIcon 独立渲染
@@ -596,21 +663,22 @@ class MenuBarIconRenderer {
         button: NSStatusBarButton?
     ) -> NSImage? {
         let removeBackground = settings.iconStyleMode == .colorTranslucent
+        let iconSize = NSSize(width: 18, height: 18)
 
         switch type {
         case .codexPrimary:
             if isMonochrome {
-                return createCircleTemplateImage(percentage: percentage, size: NSSize(width: 18, height: 18), button: button, removeBackground: true)
+                return createCircleTemplateImage(percentage: percentage, size: iconSize, button: button, removeBackground: true)
             }
             let color = UsageColorScheme.codexPrimaryColorAdaptive(percentage, for: button)
-            return createCircleImage(percentage: percentage, size: NSSize(width: 18, height: 18), colorOverride: color, button: button, removeBackground: removeBackground)
+            return createCircleImage(percentage: percentage, size: iconSize, colorOverride: color, button: button, removeBackground: removeBackground)
 
         case .codexSecondary:
             if isMonochrome {
-                return createCircleTemplateImage(percentage: percentage, size: NSSize(width: 18, height: 18), useSevenDayStyle: true, button: button, removeBackground: true)
+                return createCircleTemplateImage(percentage: percentage, size: iconSize, useSevenDayStyle: true, button: button, removeBackground: true)
             }
             let color = UsageColorScheme.codexSecondaryColorAdaptive(percentage, for: button)
-            return createCircleImage(percentage: percentage, size: NSSize(width: 18, height: 18), colorOverride: color, useDashedStyle: true, button: button, removeBackground: removeBackground)
+            return createCircleImage(percentage: percentage, size: iconSize, colorOverride: color, useDashedStyle: true, button: button, removeBackground: removeBackground)
 
         case .codexExtraUsage:
             let color = UsageColorScheme.codexExtraUsageColorAdaptive(percentage, for: button)

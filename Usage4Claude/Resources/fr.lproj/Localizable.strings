@@ -357,6 +357,45 @@
 "extra_usage.credits_remaining" = "%d crédits restants";
 "extra_usage.detail_credits_balance" = "%d crédits";
 "extra_usage.detail_credits_remaining" = "%d crédits restants";
+"extra_usage.display_mode.section" = "Affichage du quota supplémentaire";
+"extra_usage.display_mode.label" = "Mode d’affichage";
+"extra_usage.display_mode.hint" = "Choisissez entre montant ou pourcentage pour afficher le quota supplémentaire.";
+"extra_usage.display_mode.amount" = "Montant";
+"extra_usage.display_mode.percent" = "Pourcentage";
+"menubar_icon_style.section" = "Style de l’icône";
+"menubar_icon_style.label" = "Style";
+"menubar_icon_style.hint" = "Choisir entre forme (hexagone, etc.) ou compact (style moniteur — nom du compte au-dessus, valeur en dessous). Le mode compact passe du vert au jaune puis au rouge selon l’utilisation.";
+"menubar_icon_style.shape" = "Forme";
+"menubar_icon_style.compact" = "Compact";
+"dual_accounts.section" = "Affichage multi-compte de la barre de menu";
+"dual_accounts.hint" = "Afficher plusieurs comptes Claude simultanément. Chaque compte a son propre élément avec un style indépendant.";
+"dual_accounts.toggle" = "Afficher dans la barre de menu";
+"dual_accounts.secondary_account_label" = "Compte à afficher";
+"dual_accounts.not_enough_accounts" = "Nécessite 2 comptes Claude ou plus.";
+"dual_accounts.current_account_tag" = "compte actuel";
+
+// MARK: - Menu Bar Display Mode (v3.1 — multi-account compactness)
+"menubar_display.section" = "Affichage de la barre de menu";
+"menubar_display.hint" = "Lorsque plusieurs comptes sont configurés, choisissez le niveau de compacité de la barre de menu. Avec un seul compte, la mise en page complète est toujours utilisée.";
+"menubar_display.compact" = "Compact (noms abrégés + valeur max)";
+"menubar_display.compact_desc" = "Affiche uniquement le pourcentage le plus élevé de chaque compte sous forme d'un seul chiffre. Largeur minimale.";
+"menubar_display.abbreviated" = "Abrégé (nom + indicateurs clés)";
+"menubar_display.abbreviated_desc" = "Affiche les noms de comptes avec les limites principales comme 5h/7d. Compromis détail/largeur.";
+"menubar_display.primary_with_dots" = "Compte actif + points d'alerte";
+"menubar_display.primary_with_dots_desc" = "Le compte actif affiche les informations complètes, les autres apparaissent comme de petits points colorés. Le plus épuré.";
+
+// MARK: - Per-Account Preferences (v3.1)
+"account_prefs.section" = "Affichage par compte";
+"account_prefs.hint" = "Par défaut, chaque compte utilise les paramètres globaux. Activez \"Personnaliser pour ce compte\" pour le personnaliser.";
+"account_prefs.follow_global" = "Suivre les paramètres globaux";
+"account_prefs.customize_per_account" = "Personnaliser pour ce compte";
+"account_prefs.not_enough_accounts" = "Ajoutez des comptes pour ajuster ici les options d'affichage par compte.";
+
+// MARK: - Unified Popover (v3.1)
+"unified.switch_action" = "Basculer";
+"unified.active_badge" = "actif";
+"unified.claude_section" = "Comptes Claude";
+"unified.codex_section" = "Comptes Codex";
 
 // MARK: - Loading Animation
 "loading_animation.rainbow" = "Dégradé arc-en-ciel";

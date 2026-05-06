@@ -427,11 +427,64 @@ enum L {
         static var errorDisable: String { localized("launch.error.disable") }
     }
 
+    // MARK: - Multi Account Menu Bar Display
+    enum DualAccounts {
+        static var section: String { localized("dual_accounts.section") }
+        static var hint: String { localized("dual_accounts.hint") }
+        static var toggle: String { localized("dual_accounts.toggle") }
+        static var secondaryAccountLabel: String { localized("dual_accounts.secondary_account_label") }
+        static var notEnoughAccounts: String { localized("dual_accounts.not_enough_accounts") }
+        static var currentAccountTag: String { localized("dual_accounts.current_account_tag") }
+    }
+
+    // MARK: - Menu Bar Display Mode (v3.1 — multi-account compactness)
+    enum MenuBarDisplay {
+        static var section: String { localized("menubar_display.section") }
+        static var hint: String { localized("menubar_display.hint") }
+        static var compact: String { localized("menubar_display.compact") }
+        static var compactDesc: String { localized("menubar_display.compact_desc") }
+        static var abbreviated: String { localized("menubar_display.abbreviated") }
+        static var abbreviatedDesc: String { localized("menubar_display.abbreviated_desc") }
+        static var primaryWithDots: String { localized("menubar_display.primary_with_dots") }
+        static var primaryWithDotsDesc: String { localized("menubar_display.primary_with_dots_desc") }
+    }
+
+    // MARK: - Per-Account Preferences Card (v3.1)
+    enum AccountPrefs {
+        static var section: String { localized("account_prefs.section") }
+        static var hint: String { localized("account_prefs.hint") }
+        static var followGlobal: String { localized("account_prefs.follow_global") }
+        static var customizePerAccount: String { localized("account_prefs.customize_per_account") }
+        static var notEnoughAccounts: String { localized("account_prefs.not_enough_accounts") }
+    }
+
+    // MARK: - Unified Popover (v3.1)
+    enum Unified {
+        static var switchAction: String { localized("unified.switch_action") }
+        static var activeBadge: String { localized("unified.active_badge") }
+        static var claudeSection: String { localized("unified.claude_section") }
+        static var codexSection: String { localized("unified.codex_section") }
+    }
+
+    // MARK: - Menu Bar Icon Style (图形 vs 컴팩트)
+    enum MenuBarIconStyle {
+        static var section: String { localized("menubar_icon_style.section") }
+        static var label: String { localized("menubar_icon_style.label") }
+        static var hint: String { localized("menubar_icon_style.hint") }
+        static var shape: String { localized("menubar_icon_style.shape") }
+        static var compact: String { localized("menubar_icon_style.compact") }
+    }
+
     // MARK: - Extra Usage
     enum ExtraUsage {
         static var notEnabled: String { localized("extra_usage.not_enabled") }
         static var unlimited: String { localized("extra_usage.unlimited") }
         static var limitReached: String { localized("extra_usage.limit_reached") }
+        static var displayModeLabel: String { localized("extra_usage.display_mode.label") }
+        static var displayModeHint: String { localized("extra_usage.display_mode.hint") }
+        static var displayModeAmount: String { localized("extra_usage.display_mode.amount") }
+        static var displayModePercent: String { localized("extra_usage.display_mode.percent") }
+        static var displayModeSection: String { localized("extra_usage.display_mode.section") }
         static func usageAmount(_ used: Double, _ limit: Double, symbol: String = "$") -> String {
             String(format: localized("extra_usage.usage_amount"), symbol, used, symbol, limit)
         }

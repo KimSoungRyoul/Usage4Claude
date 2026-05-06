@@ -17,7 +17,7 @@ class MenuBarUI {
 
     // MARK: - UI Components
 
-    /// 系统菜单栏状态项
+    /// 系统菜单栏状态项 (v3.1 — single status item for all accounts)
     private(set) var statusItem: NSStatusItem!
     /// 详情弹出窗口
     private(set) var popover: NSPopover!
@@ -527,26 +527,50 @@ class MenuBarUI {
 
     /// 更新菜单栏图标
     /// - Parameters:
-    ///   - usageData: Claude 用量数据
-    ///   - codexUsageData: Codex 用量数据
+    ///   - usageData: 활성 Claude 用量数据
+    ///   - codexUsageData: 활성 Codex 用量数据
+    ///   - extraClaudeUsage: 보조 Claude 계정들의 사용량 (계정 ID → 데이터)
+    ///   - extraCodexUsage: 보조 Codex 계정들의 사용량
     ///   - hasUpdate: 是否有可用更新
     ///   - shouldShowBadge: 是否显示更新徽章
-    func updateMenuBarIcon(usageData: UsageData?, codexUsageData: CodexUsageData? = nil, hasUpdate: Bool, shouldShowBadge: Bool) {
+    func updateMenuBarIcon(
+        usageData: UsageData?,
+        codexUsageData: CodexUsageData? = nil,
+        extraClaudeUsage: [UUID: UsageData] = [:],
+        extraCodexUsage: [UUID: CodexUsageData] = [:],
+        hasUpdate: Bool,
+        shouldShowBadge: Bool
+    ) {
         guard let button = statusItem.button else { return }
 
         // 确定是否实际显示徽章
         let showBadge = hasUpdate && shouldShowBadge
 
-        // 生成缓存键
-        let cacheKey = generateCacheKey(usageData: usageData, codexUsageData: codexUsageData, hasUpdate: showBadge)
+        let hasSecondary = !extraClaudeUsage.isEmpty || !extraCodexUsage.isEmpty
+            || !settings.secondaryClaudeAccounts.isEmpty
+            || !settings.secondaryCodexAccounts.isEmpty
 
-        // 尝试从缓存获取
+        // 多账号模式: 使用 MenuBarDisplayMode 渲染合成图像 (캐시는 매번 새로 생성 — 데이터 변동 빈번)
+        if hasSecondary {
+            let icon = renderMultiAccountIcon(
+                button: button,
+                usageData: usageData,
+                codexUsageData: codexUsageData,
+                extraClaudeUsage: extraClaudeUsage,
+                extraCodexUsage: extraCodexUsage,
+                hasUpdate: showBadge
+            )
+            button.image = icon
+            return
+        }
+
+        // 单账号模式: 기존 캐시 경로 사용
+        let cacheKey = generateCacheKey(usageData: usageData, codexUsageData: codexUsageData, hasUpdate: showBadge)
         if let cachedImage = iconCache[cacheKey] {
             button.image = cachedImage
             return
         }
 
-        // 缓存未命中，使用 IconRenderer 创建新图标
         let icon = iconRenderer.createIcon(
             usageData: usageData,
             codexUsageData: codexUsageData,
@@ -554,13 +578,197 @@ class MenuBarUI {
             button: button
         )
 
-        // 存入缓存
         if iconCache.count >= maxCacheSize {
             iconCache.removeValue(forKey: iconCache.keys.first!)
         }
         iconCache[cacheKey] = icon
 
         button.image = icon
+    }
+
+    /// 멀티 계정 메뉴바 아이콘 합성
+    /// MenuBarDisplayMode 에 따라 압축 형태가 달라진다.
+    private func renderMultiAccountIcon(
+        button: NSStatusBarButton,
+        usageData: UsageData?,
+        codexUsageData: CodexUsageData?,
+        extraClaudeUsage: [UUID: UsageData],
+        extraCodexUsage: [UUID: CodexUsageData],
+        hasUpdate: Bool
+    ) -> NSImage {
+        let mode = settings.menuBarDisplayMode
+        let isMonochrome = settings.iconStyleMode == .monochrome
+
+        switch mode {
+        case .compact:
+            return renderCompactMultiAccount(
+                button: button,
+                usageData: usageData,
+                codexUsageData: codexUsageData,
+                extraClaudeUsage: extraClaudeUsage,
+                extraCodexUsage: extraCodexUsage,
+                isMonochrome: isMonochrome
+            )
+        case .abbreviated:
+            return renderAbbreviatedMultiAccount(
+                button: button,
+                usageData: usageData,
+                codexUsageData: codexUsageData,
+                extraClaudeUsage: extraClaudeUsage,
+                extraCodexUsage: extraCodexUsage,
+                isMonochrome: isMonochrome
+            )
+        case .primaryWithDots:
+            return renderPrimaryWithDots(
+                button: button,
+                usageData: usageData,
+                codexUsageData: codexUsageData,
+                extraClaudeUsage: extraClaudeUsage,
+                extraCodexUsage: extraCodexUsage,
+                hasUpdate: hasUpdate,
+                isMonochrome: isMonochrome
+            )
+        }
+    }
+
+    /// compact: "K1: 9% K2: 11% Cx: 42%" — 각 계정 최댓값 1개만, 가로 나열
+    private func renderCompactMultiAccount(
+        button: NSStatusBarButton,
+        usageData: UsageData?,
+        codexUsageData: CodexUsageData?,
+        extraClaudeUsage: [UUID: UsageData],
+        extraCodexUsage: [UUID: CodexUsageData],
+        isMonochrome: Bool
+    ) -> NSImage {
+        var items: [(label: String, value: String, color: NSColor)] = []
+
+        if let active = settings.currentAccount, let data = usageData {
+            let (val, color) = compactValue(for: data, button: button)
+            items.append((short(active.displayName), val, color))
+        }
+        for account in settings.secondaryClaudeAccounts {
+            if let data = extraClaudeUsage[account.id] {
+                let (val, color) = compactValue(for: data, button: button)
+                items.append((short(account.displayName), val, color))
+            }
+        }
+        if let active = settings.currentCodexAccount, let data = codexUsageData {
+            let (val, color) = compactValue(forCodex: data, button: button)
+            items.append((short(active.displayName), val, color))
+        }
+        for account in settings.secondaryCodexAccounts {
+            if let data = extraCodexUsage[account.id] {
+                let (val, color) = compactValue(forCodex: data, button: button)
+                items.append((short(account.displayName), val, color))
+            }
+        }
+
+        return ShapeIconRenderer.createMultiAccountCompactIcon(items: items, isMonochrome: isMonochrome)
+    }
+
+    /// abbreviated: 활성 계정은 풀 정보, 보조 계정은 라벨 + 최댓값
+    private func renderAbbreviatedMultiAccount(
+        button: NSStatusBarButton,
+        usageData: UsageData?,
+        codexUsageData: CodexUsageData?,
+        extraClaudeUsage: [UUID: UsageData],
+        extraCodexUsage: [UUID: CodexUsageData],
+        isMonochrome: Bool
+    ) -> NSImage {
+        // 활성 계정 풀 아이콘
+        let activeIcon = iconRenderer.createIcon(
+            usageData: usageData,
+            codexUsageData: codexUsageData,
+            hasUpdate: false,
+            button: button
+        )
+
+        var trailingItems: [(label: String, value: String, color: NSColor)] = []
+        for account in settings.secondaryClaudeAccounts {
+            if let data = extraClaudeUsage[account.id] {
+                let (val, color) = compactValue(for: data, button: button)
+                trailingItems.append((short(account.displayName), val, color))
+            }
+        }
+        for account in settings.secondaryCodexAccounts {
+            if let data = extraCodexUsage[account.id] {
+                let (val, color) = compactValue(forCodex: data, button: button)
+                trailingItems.append((short(account.displayName), val, color))
+            }
+        }
+
+        if trailingItems.isEmpty { return activeIcon }
+        let trailingIcon = ShapeIconRenderer.createMultiAccountCompactIcon(items: trailingItems, isMonochrome: isMonochrome)
+        return ShapeIconRenderer.concatenateHorizontally([activeIcon, trailingIcon], spacing: 6)
+    }
+
+    /// primaryWithDots: 활성 계정 풀 + 보조 계정은 색상 점만
+    private func renderPrimaryWithDots(
+        button: NSStatusBarButton,
+        usageData: UsageData?,
+        codexUsageData: CodexUsageData?,
+        extraClaudeUsage: [UUID: UsageData],
+        extraCodexUsage: [UUID: CodexUsageData],
+        hasUpdate: Bool,
+        isMonochrome: Bool
+    ) -> NSImage {
+        let activeIcon = iconRenderer.createIcon(
+            usageData: usageData,
+            codexUsageData: codexUsageData,
+            hasUpdate: hasUpdate,
+            button: button
+        )
+
+        var dotColors: [NSColor] = []
+        for account in settings.secondaryClaudeAccounts {
+            if let data = extraClaudeUsage[account.id] {
+                let (_, color) = compactValue(for: data, button: button)
+                dotColors.append(color)
+            }
+        }
+        for account in settings.secondaryCodexAccounts {
+            if let data = extraCodexUsage[account.id] {
+                let (_, color) = compactValue(forCodex: data, button: button)
+                dotColors.append(color)
+            }
+        }
+
+        if dotColors.isEmpty { return activeIcon }
+        return ShapeIconRenderer.appendDots(to: activeIcon, dotColors: dotColors, isMonochrome: isMonochrome)
+    }
+
+    /// 한 계정의 최대 사용률 + 라벨/색 추출 (Claude 용)
+    private func compactValue(for data: UsageData, button: NSStatusBarButton) -> (String, NSColor) {
+        let candidates: [(Double, NSColor)] = [
+            (data.fiveHour?.percentage ?? -1, UsageColorScheme.fiveHourColorAdaptive(data.fiveHour?.percentage ?? 0, for: button)),
+            (data.sevenDay?.percentage ?? -1, UsageColorScheme.sevenDayColorAdaptive(data.sevenDay?.percentage ?? 0, for: button)),
+            (data.opus?.percentage ?? -1, UsageColorScheme.opusWeeklyColorAdaptive(data.opus?.percentage ?? 0, for: button)),
+            (data.sonnet?.percentage ?? -1, UsageColorScheme.sonnetWeeklyColorAdaptive(data.sonnet?.percentage ?? 0, for: button)),
+            (data.extraUsage?.percentage ?? -1, UsageColorScheme.fiveHourColorAdaptive(data.extraUsage?.percentage ?? 0, for: button))
+        ]
+        let max = candidates.max { $0.0 < $1.0 }
+        if let m = max, m.0 >= 0 {
+            return ("\(Int(m.0))%", m.1)
+        }
+        return ("—", NSColor.secondaryLabelColor)
+    }
+
+    /// Codex 한 계정의 최대 사용률 + 색
+    private func compactValue(forCodex data: CodexUsageData, button: NSStatusBarButton) -> (String, NSColor) {
+        let primary = data.primary?.percentage
+        let secondary = data.secondary?.percentage
+        let extra = data.extraUsage?.percentage
+        let max = [primary, secondary, extra].compactMap { $0 }.max() ?? -1
+        if max >= 0 {
+            return ("\(Int(max))%", UsageColorScheme.fiveHourColorAdaptive(max, for: button))
+        }
+        return ("—", NSColor.secondaryLabelColor)
+    }
+
+    /// 계정명 짧게 (8자 초과면 잘라서)
+    private func short(_ name: String) -> String {
+        if name.count <= 8 { return name }
+        return String(name.prefix(7)) + "…"
     }
 
     /// 清除图标缓存

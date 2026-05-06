@@ -191,6 +191,107 @@ struct GeneralSettingsView: View {
                     }
                 }
 
+                // 멀티 계정 메뉴바 표시 방식 (v3.1)
+                if settings.accounts.count + settings.codexAccounts.count > 1 {
+                    SettingCard(
+                        icon: "rectangle.split.3x1.fill",
+                        iconColor: .blue,
+                        title: L.MenuBarDisplay.section,
+                        hint: L.MenuBarDisplay.hint
+                    ) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Picker("", selection: $settings.menuBarDisplayMode) {
+                                ForEach(MenuBarDisplayMode.allCases, id: \.self) { mode in
+                                    Text(mode.localizedName).tag(mode)
+                                }
+                            }
+                            .pickerStyle(.radioGroup)
+                            .labelsHidden()
+                            .focusable(false)
+
+                            if !settings.menuBarDisplayMode.description.isEmpty {
+                                HStack(alignment: .top, spacing: 4) {
+                                    Image(systemName: "info.circle.fill")
+                                        .font(.caption2)
+                                        .foregroundColor(.blue)
+                                    Text(settings.menuBarDisplayMode.description)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                .padding(.leading, 20)
+                            }
+                        }
+                    }
+                }
+
+                // 계정별 표시 설정 (v3.1) — 전역 설정의 오버라이드
+                if settings.accounts.count + settings.codexAccounts.count > 1 {
+                    SettingCard(
+                        icon: "person.crop.rectangle.stack",
+                        iconColor: .purple,
+                        title: L.AccountPrefs.section,
+                        hint: L.AccountPrefs.hint
+                    ) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            ForEach(settings.accounts) { account in
+                                AccountPreferenceCard(account: account)
+                            }
+                            ForEach(settings.codexAccounts) { account in
+                                AccountPreferenceCard(account: account)
+                            }
+                        }
+                    }
+                }
+
+                // 菜单栏图标风格卡片
+                SettingCard(
+                    icon: "square.grid.2x2",
+                    iconColor: .teal,
+                    title: L.MenuBarIconStyle.section,
+                    hint: L.MenuBarIconStyle.hint
+                ) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(L.MenuBarIconStyle.label)
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.secondary)
+
+                        Picker("", selection: $settings.menuBarIconStyle) {
+                            ForEach(MenuBarIconStyle.allCases, id: \.self) { style in
+                                Text(style.localizedName).tag(style)
+                            }
+                        }
+                        .pickerStyle(.radioGroup)
+                        .labelsHidden()
+                        .focusable(false)
+                    }
+                }
+
+                // ExtraUsage 表记方式卡片
+                SettingCard(
+                    icon: "creditcard",
+                    iconColor: .pink,
+                    title: L.ExtraUsage.displayModeSection,
+                    hint: L.ExtraUsage.displayModeHint
+                ) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(L.ExtraUsage.displayModeLabel)
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.secondary)
+
+                        Picker("", selection: $settings.extraUsageDisplayMode) {
+                            ForEach(ExtraUsageDisplayMode.allCases, id: \.self) { mode in
+                                Text(mode.localizedName).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.radioGroup)
+                        .labelsHidden()
+                        .focusable(false)
+                    }
+                }
+
                 // 刷新设置卡片
                 SettingCard(
                     icon: "clock.arrow.trianglehead.2.counterclockwise.rotate.90",
@@ -815,6 +916,125 @@ struct LimitTypeCheckbox: View {
         case .codexPrimary:  return Color(red: 45/255.0, green: 212/255.0, blue: 191/255.0)
         case .codexSecondary: return Color(red: 96/255.0, green: 165/255.0, blue: 250/255.0)
         case .codexExtraUsage: return Color(red: 245/255.0, green: 158/255.0, blue: 11/255.0)
+        }
+    }
+}
+
+// MARK: - Account Preference Card (v3.1)
+
+/// 계정별 표시 설정 카드 — 전역 설정 따름 / 이 계정만 다르게 토글
+struct AccountPreferenceCard: View {
+    let account: Account
+    @ObservedObject private var settings = UserSettings.shared
+
+    private var isFollowingGlobal: Bool {
+        settings.accountPreferences[account.id]?.isFollowingGlobal ?? true
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: account.provider == .claude ? "circle.dotted" : "hexagon")
+                    .foregroundColor(account.provider == .claude ? .orange : Color(red: 45/255.0, green: 212/255.0, blue: 191/255.0))
+                Text(account.displayName)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                Spacer()
+            }
+
+            Picker("", selection: Binding<Bool>(
+                get: { isFollowingGlobal },
+                set: { following in
+                    settings.setAccountFollowingGlobal(following, for: account.id)
+                }
+            )) {
+                Text(L.AccountPrefs.followGlobal).tag(true)
+                Text(L.AccountPrefs.customizePerAccount).tag(false)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .focusable(false)
+
+            if !isFollowingGlobal {
+                overrideEditor
+                    .padding(.leading, 8)
+            }
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.secondary.opacity(0.06))
+        )
+    }
+
+    @ViewBuilder
+    private var overrideEditor: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // 표시 모드 (smart/custom)
+            HStack {
+                Text(L.DisplayOptions.displayModeLabel)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Spacer()
+                Picker("", selection: Binding(
+                    get: { settings.resolvedDisplayMode(for: account.id) },
+                    set: { newValue in
+                        settings.updateAccountPreferences(for: account.id) { $0.displayMode = newValue }
+                    }
+                )) {
+                    ForEach(DisplayMode.allCases, id: \.self) { mode in
+                        Text(mode.localizedName).tag(mode)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .focusable(false)
+                .frame(width: 120)
+            }
+
+            // 메뉴바 아이콘 스타일
+            HStack {
+                Text(L.MenuBarIconStyle.label)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Spacer()
+                Picker("", selection: Binding(
+                    get: { settings.resolvedMenuBarIconStyle(for: account.id) },
+                    set: { newValue in
+                        settings.updateAccountPreferences(for: account.id) { $0.menuBarIconStyle = newValue }
+                    }
+                )) {
+                    ForEach(MenuBarIconStyle.allCases, id: \.self) { style in
+                        Text(style.localizedName).tag(style)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .focusable(false)
+                .frame(width: 120)
+            }
+
+            // ExtraUsage 표기
+            HStack {
+                Text(L.ExtraUsage.displayModeLabel)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Spacer()
+                Picker("", selection: Binding(
+                    get: { settings.resolvedExtraUsageDisplayMode(for: account.id) },
+                    set: { newValue in
+                        settings.updateAccountPreferences(for: account.id) { $0.extraUsageDisplayMode = newValue }
+                    }
+                )) {
+                    ForEach(ExtraUsageDisplayMode.allCases, id: \.self) { mode in
+                        Text(mode.localizedName).tag(mode)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .focusable(false)
+                .frame(width: 120)
+            }
         }
     }
 }

@@ -357,6 +357,45 @@
 "extra_usage.credits_remaining" = "%d credits remaining";
 "extra_usage.detail_credits_balance" = "%d credits";
 "extra_usage.detail_credits_remaining" = "%d credits remaining";
+"extra_usage.display_mode.section" = "Extra Usage Display";
+"extra_usage.display_mode.label" = "Display style";
+"extra_usage.display_mode.hint" = "Choose whether Extra Usage is shown as amount or percentage.";
+"extra_usage.display_mode.amount" = "Amount";
+"extra_usage.display_mode.percent" = "Percentage";
+"menubar_icon_style.section" = "Menu Bar Icon Style";
+"menubar_icon_style.label" = "Style";
+"menubar_icon_style.hint" = "Choose between shape (hexagon, etc.) or compact (system-monitor style — account label on top, value below). Compact mode tints the value green → yellow → red based on usage.";
+"menubar_icon_style.shape" = "Shape";
+"menubar_icon_style.compact" = "Compact";
+"dual_accounts.section" = "Multi-Account Menu Bar Display";
+"dual_accounts.hint" = "Show multiple Claude accounts in the menu bar simultaneously. Each account gets its own status item with an independent style.";
+"dual_accounts.toggle" = "Show in menu bar";
+"dual_accounts.secondary_account_label" = "Account to display";
+"dual_accounts.not_enough_accounts" = "Requires 2 or more Claude accounts.";
+"dual_accounts.current_account_tag" = "current account";
+
+// MARK: - Menu Bar Display Mode (v3.1 — multi-account compactness)
+"menubar_display.section" = "Menu Bar Display";
+"menubar_display.hint" = "When multiple accounts are configured, choose how compact the menu bar should be. With a single account the full layout is always used.";
+"menubar_display.compact" = "Compact (abbreviated names + max value)";
+"menubar_display.compact_desc" = "Show only each account's highest usage as a single number. Minimum width.";
+"menubar_display.abbreviated" = "Abbreviated (name + key metrics)";
+"menubar_display.abbreviated_desc" = "Show account names alongside core limits like 5h/7d. Balanced detail.";
+"menubar_display.primary_with_dots" = "Active + alert dots";
+"menubar_display.primary_with_dots_desc" = "Active account gets the full layout; secondary accounts appear as small colored dots. Cleanest.";
+
+// MARK: - Per-Account Preferences (v3.1)
+"account_prefs.section" = "Per-Account Display";
+"account_prefs.hint" = "By default each account uses the global settings. Toggle \"Customize for this account\" to override.";
+"account_prefs.follow_global" = "Follow global";
+"account_prefs.customize_per_account" = "Customize for this account";
+"account_prefs.not_enough_accounts" = "Add accounts to adjust per-account display options here.";
+
+// MARK: - Unified Popover (v3.1)
+"unified.switch_action" = "Switch";
+"unified.active_badge" = "active";
+"unified.claude_section" = "Claude accounts";
+"unified.codex_section" = "Codex accounts";
 
 // MARK: - Loading Animation
 "loading_animation.rainbow" = "Rainbow Gradient";

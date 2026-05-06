@@ -355,6 +355,45 @@
 "extra_usage.credits_remaining" = "%d 크레딧 남음";
 "extra_usage.detail_credits_balance" = "%d 크레딧";
 "extra_usage.detail_credits_remaining" = "%d 크레딧 남음";
+"extra_usage.display_mode.section" = "추가 사용량 표기";
+"extra_usage.display_mode.label" = "표기 방식";
+"extra_usage.display_mode.hint" = "추가 사용량을 금액으로 보일지 백분율로 보일지 선택하세요.";
+"extra_usage.display_mode.amount" = "금액";
+"extra_usage.display_mode.percent" = "백분율";
+"menubar_icon_style.section" = "메뉴바 아이콘 스타일";
+"menubar_icon_style.label" = "스타일";
+"menubar_icon_style.hint" = "도형(육각형 등) 또는 컴팩트(시스템 모니터 풍 — 위 계정명, 아래 사용량) 중 선택. 컴팩트 모드는 사용량에 따라 색상이 초록→노랑→빨강으로 변합니다.";
+"menubar_icon_style.shape" = "도형";
+"menubar_icon_style.compact" = "컴팩트";
+"dual_accounts.section" = "메뉴바 멀티 계정 표시";
+"dual_accounts.hint" = "메뉴바에 여러 Claude 계정을 동시에 표시합니다. 각 계정마다 별도 status item + 독립 스타일 설정.";
+"dual_accounts.toggle" = "메뉴바에 표시";
+"dual_accounts.secondary_account_label" = "표시할 계정";
+"dual_accounts.not_enough_accounts" = "Claude 계정이 2개 이상이어야 합니다.";
+"dual_accounts.current_account_tag" = "현재 계정";
+
+// MARK: - Menu Bar Display Mode (v3.1 — multi-account compactness)
+"menubar_display.section" = "메뉴바 표시 방식";
+"menubar_display.hint" = "여러 계정이 있을 때 메뉴바에 어떻게 압축해 보일지 선택하세요. 단일 계정이면 자동으로 풀 정보가 표시됩니다.";
+"menubar_display.compact" = "압축 (계정명 약어 + 최댓값)";
+"menubar_display.compact_desc" = "각 계정의 가장 높은 사용률만 한 숫자로 표시. 메뉴바 공간 최소화.";
+"menubar_display.abbreviated" = "약식 (계정명 + 핵심 지표)";
+"menubar_display.abbreviated_desc" = "계정명과 5h/7d 같은 핵심 limit을 함께 표시. 정보량과 공간의 균형.";
+"menubar_display.primary_with_dots" = "활성 계정 + 알람 점";
+"menubar_display.primary_with_dots_desc" = "활성 계정만 풀 정보로 보이고 다른 계정은 색상 점으로 알람만 표시. 가장 깔끔.";
+
+// MARK: - Per-Account Preferences (v3.1)
+"account_prefs.section" = "계정별 표시 설정";
+"account_prefs.hint" = "기본은 전역 설정을 따릅니다. 특정 계정만 다르게 보고 싶으면 \"이 계정만 다르게\"를 선택하세요.";
+"account_prefs.follow_global" = "전역 설정 따름";
+"account_prefs.customize_per_account" = "이 계정만 다르게";
+"account_prefs.not_enough_accounts" = "계정이 추가되면 여기에서 계정별 표시 옵션을 조정할 수 있습니다.";
+
+// MARK: - Unified Popover (v3.1)
+"unified.switch_action" = "전환";
+"unified.active_badge" = "활성";
+"unified.claude_section" = "Claude 계정";
+"unified.codex_section" = "Codex 계정";
 
 // MARK: - Loading Animation
 "loading_animation.rainbow" = "무지개 그라데이션";

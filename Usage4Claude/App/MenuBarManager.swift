@@ -102,6 +102,19 @@ class MenuBarManager: ObservableObject {
             }
             .store(in: &cancellables)
 
+        // 보조 계정 데이터가 갱신되면 메뉴바 아이콘도 다시 그려준다 (멀티 계정 표시 모드)
+        dataManager.$extraAccountUsageData
+            .sink { [weak self] _ in
+                self?.updateMenuBarIcon()
+            }
+            .store(in: &cancellables)
+
+        dataManager.$extraCodexAccountUsageData
+            .sink { [weak self] _ in
+                self?.updateMenuBarIcon()
+            }
+            .store(in: &cancellables)
+
         dataManager.$codexUsageData
             .sink { [weak self] data in
                 self?.codexUsageData = data
@@ -287,10 +300,17 @@ class MenuBarManager: ObservableObject {
         // 显示更新通知（如果有）
         showUpdateNotificationIfNeeded()
 
-        ui.setPopoverContentSize(usageDetailContentSize())
+        let hasSecondary = !settings.secondaryClaudeAccounts.isEmpty
+            || !settings.secondaryCodexAccounts.isEmpty
 
-        // 创建并设置内容视图
-        ui.setPopoverContent(UsageDetailView(
+        ui.setPopoverContentSize(unifiedContentSize(hasSecondary: hasSecondary))
+
+        // 보조 계정이 있을 때만 활성 카드 헤더에 계정명을 명시 (구분용)
+        let primaryTitle: String? = hasSecondary
+            ? (settings.currentAccountName ?? L.Usage.title)
+            : nil
+
+        let activeCard = UsageDetailView(
             usageData: Binding(
                 get: { self.usageData },
                 set: { self.usageData = $0 }
@@ -318,14 +338,42 @@ class MenuBarManager: ObservableObject {
             shouldShowUpdateBadge: Binding(
                 get: { self.shouldShowUpdateBadge },
                 set: { _ in }
-            )
-        ))
+            ),
+            accountTitleOverride: primaryTitle
+        )
+
+        if hasSecondary {
+            ui.setPopoverContent(UnifiedUsageDetailView(
+                activeCard: activeCard,
+                extraClaudeUsage: Binding(
+                    get: { self.dataManager.extraAccountUsageData },
+                    set: { self.dataManager.extraAccountUsageData = $0 }
+                ),
+                extraCodexUsage: Binding(
+                    get: { self.dataManager.extraCodexAccountUsageData },
+                    set: { self.dataManager.extraCodexAccountUsageData = $0 }
+                )
+            ))
+        } else {
+            ui.setPopoverContent(activeCard)
+        }
 
         // 打开 popover
         ui.openPopover(relativeTo: button)
 
         // 启动刷新定时器
         startPopoverRefreshTimer()
+    }
+
+    /// 통합 popover의 컨텐츠 크기 — 보조 계정이 있으면 미니 카드들 분량을 추가한다.
+    private func unifiedContentSize(hasSecondary: Bool) -> NSSize {
+        let baseSize = usageDetailContentSize()
+        guard hasSecondary else { return baseSize }
+        let miniCardCount = settings.secondaryClaudeAccounts.count
+            + settings.secondaryCodexAccounts.count
+        let miniHeight: CGFloat = CGFloat(miniCardCount) * 56 + 16  // 카드 + spacing
+        let extraHeader: CGFloat = 24  // 섹션 헤더("Claude 계정") 1~2줄
+        return NSSize(width: baseSize.width, height: baseSize.height + miniHeight + extraHeader)
     }
 
     private func usageDetailContentSize() -> NSSize {
@@ -573,9 +621,15 @@ class MenuBarManager: ObservableObject {
     
     // MARK: - Icon Management
 
-    /// 更新菜单栏图标
     private func updateMenuBarIcon() {
-        ui.updateMenuBarIcon(usageData: usageData, codexUsageData: codexUsageData, hasUpdate: hasAvailableUpdate, shouldShowBadge: shouldShowUpdateBadge)
+        ui.updateMenuBarIcon(
+            usageData: usageData,
+            codexUsageData: codexUsageData,
+            extraClaudeUsage: dataManager.extraAccountUsageData,
+            extraCodexUsage: dataManager.extraCodexAccountUsageData,
+            hasUpdate: hasAvailableUpdate,
+            shouldShowBadge: shouldShowUpdateBadge
+        )
     }
     
     // MARK: - Cleanup
