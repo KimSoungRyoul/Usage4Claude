@@ -37,8 +37,7 @@ struct UnifiedUsageDetailView: View {
                         SecondaryAccountMiniCard(
                             label: account.displayName,
                             data: extraClaudeUsage[account.id],
-                            isClaude: true,
-                            onSwitch: { settings.switchToAccount(account) }
+                            isClaude: true
                         )
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
@@ -52,8 +51,7 @@ struct UnifiedUsageDetailView: View {
                         SecondaryAccountMiniCard(
                             label: account.displayName,
                             codexData: extraCodexUsage[account.id],
-                            isClaude: false,
-                            onSwitch: { settings.switchToCodexAccount(account) }
+                            isClaude: false
                         )
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
@@ -88,13 +86,14 @@ struct UnifiedUsageDetailView: View {
     }
 }
 
-/// 보조 계정 미니 카드 — 한 줄짜리 컴팩트 표시
+/// 보조 organization 미니 카드 — 한 줄짜리 컴팩트 표시
+/// 같은 사용자의 다른 organization (요금제) 사용량을 동시에 노출하기 위한 카드.
+/// 별도 계정이 아니라 같은 sessionKey 안의 다른 워크스페이스이므로 "전환" 액션이 의미 없다.
 private struct SecondaryAccountMiniCard: View {
     let label: String
     var data: UsageData? = nil
     var codexData: CodexUsageData? = nil
     let isClaude: Bool
-    let onSwitch: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
@@ -111,17 +110,6 @@ private struct SecondaryAccountMiniCard: View {
             }
 
             Spacer()
-
-            Button(action: onSwitch) {
-                Text(L.Unified.switchAction)
-                    .font(.caption)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(Capsule().fill(Color.accentColor))
-            }
-            .buttonStyle(.plain)
-            .focusable(false)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
