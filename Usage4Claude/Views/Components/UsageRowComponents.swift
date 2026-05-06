@@ -197,6 +197,11 @@ struct UnifiedLimitRow: View {
 
         case .extraUsage:
             guard let extra = data?.extraUsage else { return "-" }
+            // 用户选择表记方式：百分比模式直接显示 X%，金额模式按 showRemainingMode 切换 used/limit ↔ remaining
+            if UserSettings.shared.extraUsageDisplayMode == .percent {
+                guard extra.enabled, let pct = extra.percentage else { return "-" }
+                return String(format: "%.1f%%", pct)
+            }
             return showRemainingMode ? extra.formattedRemainingAmount : extra.formattedCompactAmount
 
         case .codexPrimary:

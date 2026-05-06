@@ -147,9 +147,9 @@ class ShapeIconRenderer {
             progressPath.stroke()
         }
 
-        // 3. 绘制百分比文字
+        // 3. 绘制百分比文字（字体大小随 rect 比例调整）
         let percentageText = "\(Int(percentage))"
-        let percentageFontSize: CGFloat = percentage >= 100 ? 5.0 : 7.2
+        let percentageFontSize: CGFloat = percentage >= 100 ? rect.width * (5.0 / 16.0) : rect.width * (7.2 / 16.0)
         let attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: percentageFontSize, weight: percentage >= 100 ? .bold : .semibold),
             .foregroundColor: NSColor.black
@@ -330,9 +330,9 @@ class ShapeIconRenderer {
             progressPath.stroke()
         }
 
-        // 3. 绘制百分比文字（与Opus完全一致）
+        // 3. 绘制百分比文字（与Opus完全一致，字号随 rect 比例缩放）
         let percentageText = "\(Int(percentage))"
-        let percentageFontSize: CGFloat = percentage >= 100 ? 5.0 : 7.2
+        let percentageFontSize: CGFloat = percentage >= 100 ? rect.width * (5.0 / 16.0) : rect.width * (7.2 / 16.0)
         let attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: percentageFontSize, weight: percentage >= 100 ? .bold : .semibold),
             .foregroundColor: NSColor.black
@@ -350,10 +350,19 @@ class ShapeIconRenderer {
     ///   - isMonochrome: 是否为单色模式
     ///   - button: 状态栏按钮（用于获取颜色）
     ///   - removeBackground: 是否移除背景填充
-    static func drawHexagonWithPercentage(center: NSPoint, size: CGFloat, percentage: Double, isMonochrome: Bool, button: NSStatusBarButton?, removeBackground: Bool = false, colorOverride: NSColor? = nil) {
+    static func drawHexagonWithPercentage(center: NSPoint, size: CGFloat, percentage: Double, isMonochrome: Bool, button: NSStatusBarButton?, removeBackground: Bool = false, colorOverride: NSColor? = nil, displayText: String? = nil) {
         let radius = size / 2
         let borderWidth: CGFloat = 1.5
         let progressWidth: CGFloat = 2.5  // 进度线条加粗
+
+        // 文字準備 — 默认显示百分比，displayText 提供时使用（如 amount 模式下显示 "$26"）
+        let percentageText = displayText ?? "\(Int(percentage))"
+        // 文字超过 2 字符时（如 "$26", "100"）使用更小字号避免溢出
+        let percentageFontSize: CGFloat = percentageText.count >= 3 ? 5.0 : 7.2
+        let textAttrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: percentageFontSize, weight: percentageText.count >= 3 ? .bold : .semibold),
+            .foregroundColor: NSColor.black
+        ]
 
         // 创建平顶六边形路径（flat top - 上下两边是平的）
         let hexagonPath = NSBezierPath()
@@ -455,15 +464,9 @@ class ShapeIconRenderer {
         }
 
         // 3. 绘制百分比文字
-        let percentageText = "\(Int(percentage))"
-        let percentageFontSize: CGFloat = percentage >= 100 ? 5.0 : 7.2
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: percentageFontSize, weight: percentage >= 100 ? .bold : .semibold),
-            .foregroundColor: NSColor.black
-        ]
-        let textSize = percentageText.size(withAttributes: attributes)
+        let textSize = percentageText.size(withAttributes: textAttrs)
         let textRect = NSRect(x: center.x - textSize.width / 2, y: center.y - textSize.height / 2, width: textSize.width, height: textSize.height)
-        percentageText.draw(in: textRect, withAttributes: attributes)
+        percentageText.draw(in: textRect, withAttributes: textAttrs)
     }
 
     // MARK: - Icon Creation Methods
@@ -515,16 +518,298 @@ class ShapeIconRenderer {
     ///   - button: 状态栏按钮
     ///   - removeBackground: 是否移除背景（默认false）
     /// - Returns: 图标图像 (18×18)
-    static func createHexagonIcon(percentage: Double, isMonochrome: Bool, button: NSStatusBarButton?, removeBackground: Bool = false, colorOverride: NSColor? = nil) -> NSImage {
+    /// 기존 NSImage 위에 작은 텍스트 라벨을 얹어 새 NSImage 반환
+    /// 멀티 계정 status item 에서 도형 스타일의 위에 계정명을 표시할 때 사용
+    static func wrapWithTopLabel(_ contentImage: NSImage, label: String, isMonochrome: Bool) -> NSImage {
+        let labelFont = NSFont.systemFont(ofSize: 8, weight: .regular)
+        let labelAttrs: [NSAttributedString.Key: Any] = [
+            .font: labelFont,
+            .foregroundColor: NSColor.secondaryLabelColor
+        ]
+        let labelSize = label.size(withAttributes: labelAttrs)
+
+        let contentSize = contentImage.size
+        let imageWidth = ceil(max(labelSize.width, contentSize.width)) + 4
+        let imageHeight: CGFloat = max(22, ceil(labelSize.height) + ceil(contentSize.height))
+
+        let image = NSImage(size: NSSize(width: imageWidth, height: imageHeight))
+        image.lockFocus()
+
+        // 위 라벨 (가운데)
+        let labelY = imageHeight - labelSize.height - 1
+        let labelRect = NSRect(
+            x: (imageWidth - labelSize.width) / 2,
+            y: labelY,
+            width: labelSize.width,
+            height: labelSize.height
+        )
+        label.draw(in: labelRect, withAttributes: labelAttrs)
+
+        // 아래 content (가운데 아래 정렬)
+        let contentX = (imageWidth - contentSize.width) / 2
+        contentImage.draw(
+            at: NSPoint(x: contentX, y: 0),
+            from: .zero,
+            operation: .sourceOver,
+            fraction: 1.0
+        )
+
+        image.unlockFocus()
+        image.isTemplate = isMonochrome
+        return image
+    }
+
+    /// 多值 컴팩트 — 上方 한 라벨 + 下方 여러 값 가로 나열 (5h, 7d, ExtraUsage 등 동시 표시)
+    /// - Parameters:
+    ///   - label: 위쪽 라벨 (예: "Naver_TEAM")
+    ///   - items: 아래 가로 나열 항목 (text, color)
+    ///   - isMonochrome: template 모드
+    static func createMultiValueCompactIcon(
+        label: String,
+        items: [(text: String, color: NSColor)],
+        isMonochrome: Bool
+    ) -> NSImage {
+        let labelFont = NSFont.systemFont(ofSize: 8, weight: .regular)
+        let valueFont = NSFont.systemFont(ofSize: 11, weight: .semibold)
+        let labelAttrs: [NSAttributedString.Key: Any] = [
+            .font: labelFont,
+            .foregroundColor: NSColor.secondaryLabelColor
+        ]
+
+        let labelSize = label.size(withAttributes: labelAttrs)
+
+        // 각 value 측정
+        struct Measured {
+            let text: String
+            let attrs: [NSAttributedString.Key: Any]
+            let size: NSSize
+        }
+        let measured: [Measured] = items.map { item in
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: valueFont,
+                .foregroundColor: isMonochrome ? NSColor.controlTextColor : item.color
+            ]
+            return Measured(text: item.text, attrs: attrs, size: item.text.size(withAttributes: attrs))
+        }
+
+        let valueSpacing: CGFloat = 8
+        let totalValueWidth = measured.reduce(0) { $0 + $1.size.width }
+            + CGFloat(max(0, measured.count - 1)) * valueSpacing
+
+        let imageWidth = ceil(max(labelSize.width, totalValueWidth)) + 6
+        let imageHeight: CGFloat = 22
+        let imageSize = NSSize(width: imageWidth, height: imageHeight)
+
+        let image = NSImage(size: imageSize)
+        image.lockFocus()
+
+        // 上 label (가운데 정렬)
+        let labelY = imageHeight - labelSize.height - 1
+        let labelRect = NSRect(
+            x: (imageWidth - labelSize.width) / 2,
+            y: labelY,
+            width: labelSize.width,
+            height: labelSize.height
+        )
+        label.draw(in: labelRect, withAttributes: labelAttrs)
+
+        // 下 values 가로 나열 (가운데 정렬)
+        var x = (imageWidth - totalValueWidth) / 2
+        for m in measured {
+            let rect = NSRect(x: x, y: 0, width: m.size.width, height: m.size.height)
+            m.text.draw(in: rect, withAttributes: m.attrs)
+            x += m.size.width + valueSpacing
+        }
+
+        image.unlockFocus()
+        image.isTemplate = isMonochrome
+        return image
+    }
+
+    /// 创建紧凑风格图标（系统监控风 — 上方账号名 + 下方值）
+    /// - 类似 macOS Stats / iStat Menus 中的 "CPU 30%" / "RAM 61%" 显示
+    /// - 上方小字标签（账号名等），下方大字值（金额/百分比）
+    /// - 值的颜色按 percentage 在绿→黄→红渐变
+    /// - 宽度根据较长一行自动伸缩
+    /// - Parameters:
+    ///   - label: 上方小字（如 "Naver"）
+    ///   - value: 下方大字（如 "$50 (11%)" 或 "14%"）
+    ///   - valueColor: 值的颜色（彩色模式下使用）
+    ///   - isMonochrome: 单色（template）模式
+    /// - Returns: 高度 22px、宽度自适应的图标
+    static func createCompactIcon(label: String, value: String, valueColor: NSColor, isMonochrome: Bool) -> NSImage {
+        let labelFont = NSFont.systemFont(ofSize: 8, weight: .regular)
+        let valueFont = NSFont.systemFont(ofSize: 11, weight: .semibold)
+
+        let labelAttrs: [NSAttributedString.Key: Any] = [
+            .font: labelFont,
+            .foregroundColor: NSColor.secondaryLabelColor
+        ]
+        let valueAttrs: [NSAttributedString.Key: Any] = [
+            .font: valueFont,
+            .foregroundColor: isMonochrome ? NSColor.controlTextColor : valueColor
+        ]
+
+        let labelSize = label.size(withAttributes: labelAttrs)
+        let valueSize = value.size(withAttributes: valueAttrs)
+
+        let imageWidth = ceil(max(labelSize.width, valueSize.width)) + 4
+        let imageHeight: CGFloat = 22
+        let imageSize = NSSize(width: imageWidth, height: imageHeight)
+
+        let image = NSImage(size: imageSize)
+        image.lockFocus()
+
+        // 上方 label
+        let labelY = imageHeight - labelSize.height - 1
+        let labelRect = NSRect(
+            x: (imageWidth - labelSize.width) / 2,
+            y: labelY,
+            width: labelSize.width,
+            height: labelSize.height
+        )
+        label.draw(in: labelRect, withAttributes: labelAttrs)
+
+        // 下方 value（绿→黄→红 색상 적용）
+        let valueRect = NSRect(
+            x: (imageWidth - valueSize.width) / 2,
+            y: 0,
+            width: valueSize.width,
+            height: valueSize.height
+        )
+        value.draw(in: valueRect, withAttributes: valueAttrs)
+
+        image.unlockFocus()
+        image.isTemplate = isMonochrome
+        return image
+    }
+
+    static func createHexagonIcon(percentage: Double, isMonochrome: Bool, button: NSStatusBarButton?, removeBackground: Bool = false, colorOverride: NSColor? = nil, displayText: String? = nil) -> NSImage {
         let size = NSSize(width: 18, height: 18)
         let image = NSImage(size: size)
         image.lockFocus()
 
         let center = NSPoint(x: size.width / 2, y: size.height / 2)
-        drawHexagonWithPercentage(center: center, size: 16, percentage: percentage, isMonochrome: isMonochrome, button: button, removeBackground: removeBackground, colorOverride: colorOverride)
+        drawHexagonWithPercentage(center: center, size: 16, percentage: percentage, isMonochrome: isMonochrome, button: button, removeBackground: removeBackground, colorOverride: colorOverride, displayText: displayText)
 
         image.unlockFocus()
         image.isTemplate = isMonochrome
         return image
+    }
+
+    // MARK: - Multi-Account Helpers (v3.1)
+
+    /// 여러 계정의 (라벨, 값, 색)을 가로 나열한 menubar 아이콘
+    /// 형식: "라벨1: 값1  라벨2: 값2  ..."
+    static func createMultiAccountCompactIcon(
+        items: [(label: String, value: String, color: NSColor)],
+        isMonochrome: Bool
+    ) -> NSImage {
+        guard !items.isEmpty else {
+            // empty placeholder
+            let placeholder = NSImage(size: NSSize(width: 18, height: 18))
+            placeholder.isTemplate = true
+            return placeholder
+        }
+
+        let labelFont = NSFont.systemFont(ofSize: 9, weight: .medium)
+        let valueFont = NSFont.systemFont(ofSize: 11, weight: .semibold)
+        let labelColor = NSColor.secondaryLabelColor
+        let separator: CGFloat = 8 // 계정 간 가로 간격
+        let valueGap: CGFloat = 3  // 라벨과 값 사이 간격
+        let height: CGFloat = 22
+
+        // 너비 계산
+        var totalWidth: CGFloat = 0
+        var sizes: [(labelW: CGFloat, valueW: CGFloat)] = []
+        for item in items {
+            let lw = (item.label as NSString).size(withAttributes: [.font: labelFont]).width
+            let vw = (item.value as NSString).size(withAttributes: [.font: valueFont]).width
+            sizes.append((lw, vw))
+            totalWidth += lw + valueGap + vw + separator
+        }
+        totalWidth -= separator // 마지막 separator 제거
+        totalWidth += 4 // 좌우 여백
+
+        let image = NSImage(size: NSSize(width: max(totalWidth, 18), height: height))
+        image.lockFocus()
+
+        var x: CGFloat = 2
+        for (i, item) in items.enumerated() {
+            let labelAttrs: [NSAttributedString.Key: Any] = [
+                .font: labelFont,
+                .foregroundColor: isMonochrome ? NSColor.labelColor : labelColor
+            ]
+            let valueAttrs: [NSAttributedString.Key: Any] = [
+                .font: valueFont,
+                .foregroundColor: isMonochrome ? NSColor.labelColor : item.color
+            ]
+            let labelRect = NSRect(x: x, y: height - 11, width: sizes[i].labelW, height: 10)
+            (item.label as NSString).draw(in: labelRect, withAttributes: labelAttrs)
+
+            let valueRect = NSRect(x: x, y: 2, width: sizes[i].labelW + valueGap + sizes[i].valueW, height: 12)
+            // 라벨 아래에 값 (라벨이 짧고 값이 길면 미세하게 좌측 정렬)
+            (item.value as NSString).draw(in: valueRect, withAttributes: valueAttrs)
+
+            x += sizes[i].labelW + valueGap + sizes[i].valueW + separator
+        }
+
+        image.unlockFocus()
+        image.isTemplate = isMonochrome
+        return image
+    }
+
+    /// 여러 NSImage를 가로로 합성한 새 NSImage 반환
+    static func concatenateHorizontally(_ images: [NSImage], spacing: CGFloat = 4) -> NSImage {
+        guard !images.isEmpty else {
+            let img = NSImage(size: NSSize(width: 18, height: 18))
+            img.isTemplate = true
+            return img
+        }
+        let totalWidth = images.reduce(0) { $0 + $1.size.width } + spacing * CGFloat(max(0, images.count - 1))
+        let height = images.map(\.size.height).max() ?? 22
+
+        let result = NSImage(size: NSSize(width: totalWidth, height: height))
+        result.lockFocus()
+        var x: CGFloat = 0
+        for img in images {
+            let y = (height - img.size.height) / 2
+            img.draw(at: NSPoint(x: x, y: y), from: .zero, operation: .sourceOver, fraction: 1.0)
+            x += img.size.width + spacing
+        }
+        result.unlockFocus()
+        // 모든 입력이 template 일 때만 template (아니면 색상 상실)
+        result.isTemplate = images.allSatisfy { $0.isTemplate }
+        return result
+    }
+
+    /// 기존 아이콘 우측에 색상 점들을 작게 추가
+    static func appendDots(to baseIcon: NSImage, dotColors: [NSColor], isMonochrome: Bool) -> NSImage {
+        guard !dotColors.isEmpty else { return baseIcon }
+        let dotSize: CGFloat = 5
+        let dotSpacing: CGFloat = 2
+        let leadingGap: CGFloat = 4
+        let dotsTotalWidth: CGFloat = CGFloat(dotColors.count) * dotSize
+            + CGFloat(max(0, dotColors.count - 1)) * dotSpacing
+
+        let totalWidth = baseIcon.size.width + leadingGap + dotsTotalWidth
+        let height = max(baseIcon.size.height, dotSize)
+
+        let result = NSImage(size: NSSize(width: totalWidth, height: height))
+        result.lockFocus()
+        baseIcon.draw(at: NSPoint(x: 0, y: (height - baseIcon.size.height) / 2),
+                      from: .zero, operation: .sourceOver, fraction: 1.0)
+
+        var x = baseIcon.size.width + leadingGap
+        let dotY = (height - dotSize) / 2
+        for color in dotColors {
+            let path = NSBezierPath(ovalIn: NSRect(x: x, y: dotY, width: dotSize, height: dotSize))
+            (isMonochrome ? NSColor.labelColor : color).setFill()
+            path.fill()
+            x += dotSize + dotSpacing
+        }
+        result.unlockFocus()
+        result.isTemplate = isMonochrome
+        return result
     }
 }

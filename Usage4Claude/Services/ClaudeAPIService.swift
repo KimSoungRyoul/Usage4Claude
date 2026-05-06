@@ -114,13 +114,16 @@ class ClaudeAPIService {
                 return
             }
 
-            // 创建包含 Extra Usage 的完整数据
+            // 优先使用主 /usage 响应内嵌的 extra_usage（Enterprise 计划），
+            // 否则回退到 /overage_spend_limit 单独接口的数据（Pro/Team 计划）
+            let mergedExtraUsage = finalData.extraUsage ?? extraUsageData
+
             finalData = UsageData(
                 fiveHour: finalData.fiveHour,
                 sevenDay: finalData.sevenDay,
                 opus: finalData.opus,
                 sonnet: finalData.sonnet,
-                extraUsage: extraUsageData  // 可能为 nil
+                extraUsage: mergedExtraUsage
             )
 
             completion(.success(finalData))
@@ -416,6 +419,128 @@ class ClaudeAPIService {
         task.resume()
     }
 
+    // MARK: - Explicit-Credential Fetch (Dual Account 用)
+
+    /// 명시적 organizationId / sessionKey 로 fetch (듀얼 계정 동시 호출 시 사용)
+    /// 기존 fetchUsage() 와 달리 settings.shared 의 currentAccount 에 의존하지 않음
+    func fetchUsage(organizationId: String, sessionKey: String, completion: @escaping (Result<UsageData, Error>) -> Void) {
+        guard !organizationId.isEmpty, !sessionKey.isEmpty else {
+            completion(.failure(UsageError.noCredentials))
+            return
+        }
+
+        let group = DispatchGroup()
+        var mainData: UsageData?
+        var extraData: ExtraUsageData?
+        var mainError: Error?
+
+        group.enter()
+        fetchMainUsageWithCreds(orgId: organizationId, sessionKey: sessionKey) { result in
+            switch result {
+            case .success(let d): mainData = d
+            case .failure(let e): mainError = e
+            }
+            group.leave()
+        }
+
+        group.enter()
+        fetchExtraUsageWithCreds(orgId: organizationId, sessionKey: sessionKey) { result in
+            if case .success(let d) = result { extraData = d }
+            group.leave()
+        }
+
+        group.notify(queue: .main) {
+            if let e = mainError { completion(.failure(e)); return }
+            guard var final = mainData else {
+                completion(.failure(UsageError.decodingError)); return
+            }
+            // 임베드 우선, 없으면 별도 endpoint 데이터
+            let merged = final.extraUsage ?? extraData
+            final = UsageData(
+                fiveHour: final.fiveHour,
+                sevenDay: final.sevenDay,
+                opus: final.opus,
+                sonnet: final.sonnet,
+                extraUsage: merged
+            )
+            completion(.success(final))
+        }
+    }
+
+    private func fetchMainUsageWithCreds(orgId: String, sessionKey: String, completion: @escaping (Result<UsageData, Error>) -> Void) {
+        let urlString = "\(baseURL)/\(orgId)/usage"
+        guard let url = URL(string: urlString) else {
+            completion(.failure(UsageError.invalidURL)); return
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.assumesHTTP3Capable = false
+        ClaudeAPIHeaderBuilder.applyHeaders(to: &request, organizationId: orgId, sessionKey: sessionKey)
+
+        let task = session.dataTask(with: request) { data, response, error in
+            if let error = error {
+                Logger.api.debug("[Secondary] Network error: \(error.localizedDescription)")
+                completion(.failure(UsageError.networkError)); return
+            }
+            guard let data = data else { completion(.failure(UsageError.noData)); return }
+            if let jsonString = String(data: data, encoding: .utf8),
+               jsonString.contains("<!DOCTYPE html>") || jsonString.contains("<html") {
+                completion(.failure(UsageError.cloudflareBlocked)); return
+            }
+            if let httpResponse = response as? HTTPURLResponse {
+                switch httpResponse.statusCode {
+                case 200...299: break
+                case 401: completion(.failure(UsageError.unauthorized)); return
+                case 403: completion(.failure(UsageError.cloudflareBlocked)); return
+                case 429: completion(.failure(UsageError.rateLimited)); return
+                default:
+                    completion(.failure(UsageError.httpError(statusCode: httpResponse.statusCode))); return
+                }
+            }
+            let decoder = JSONDecoder()
+            if let err = try? decoder.decode(ErrorResponse.self, from: data),
+               err.error.type == "permission_error" {
+                completion(.failure(UsageError.sessionExpired)); return
+            }
+            do {
+                let response = try decoder.decode(UsageResponse.self, from: data)
+                completion(.success(response.toUsageData()))
+            } catch {
+                completion(.failure(UsageError.decodingError))
+            }
+        }
+        task.resume()
+    }
+
+    private func fetchExtraUsageWithCreds(orgId: String, sessionKey: String, completion: @escaping (Result<ExtraUsageData?, Error>) -> Void) {
+        let urlString = "\(baseURL)/\(orgId)/overage_spend_limit"
+        guard let url = URL(string: urlString) else {
+            completion(.failure(UsageError.invalidURL)); return
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.assumesHTTP3Capable = false
+        ClaudeAPIHeaderBuilder.applyHeaders(to: &request, organizationId: orgId, sessionKey: sessionKey)
+
+        let task = session.dataTask(with: request) { data, response, _ in
+            guard let data = data else { completion(.success(nil)); return }
+            if let httpResponse = response as? HTTPURLResponse {
+                switch httpResponse.statusCode {
+                case 200...299: break
+                case 403, 404: completion(.success(nil)); return
+                default: completion(.success(nil)); return
+                }
+            }
+            let decoder = JSONDecoder()
+            if let resp = try? decoder.decode(ExtraUsageResponse.self, from: data) {
+                completion(.success(resp.toExtraUsageData()))
+            } else {
+                completion(.success(nil))
+            }
+        }
+        task.resume()
+    }
+
     /// 取消所有正在进行的网络请求
     /// 在应用退出或需要中断请求时调用
     func cancelAllRequests() {
@@ -512,8 +637,8 @@ nonisolated struct Organization: Codable, Sendable, Identifiable, Equatable {
 /// API 响应数据模型
 /// 对应 Claude API 返回的 JSON 结构
 nonisolated struct UsageResponse: Codable, Sendable {
-    /// 5小时用量限制数据
-    let five_hour: LimitUsage
+    /// 5小时用量限制数据（Enterprise 计划下可能为 null）
+    let five_hour: LimitUsage?
     /// 7天用量限制数据
     let seven_day: LimitUsage?
     /// 7天 OAuth 应用用量（暂未使用）
@@ -522,6 +647,8 @@ nonisolated struct UsageResponse: Codable, Sendable {
     let seven_day_opus: LimitUsage?
     /// 7天 Sonnet 用量限制数据（新字段）
     let seven_day_sonnet: LimitUsage?
+    /// Enterprise 计划内嵌的 Extra Usage 数据（Pro/Team 计划无此字段）
+    let extra_usage: EmbeddedExtraUsage?
 
     /// 通用限制用量详情（适用于5小时、7天等各种限制）
     struct LimitUsage: Codable, Sendable {
@@ -530,23 +657,64 @@ nonisolated struct UsageResponse: Codable, Sendable {
         /// 重置时间（ISO 8601 格式），nil 表示尚未开始使用
         let resets_at: String?
     }
+
+    /// Enterprise 内嵌的 Extra Usage 数据
+    /// 出现在 /usage 响应中（非 /overage_spend_limit）
+    struct EmbeddedExtraUsage: Codable, Sendable {
+        let is_enabled: Bool?
+        /// 每月额度上限（单位：美分）
+        let monthly_limit: Int?
+        /// 已使用金额（单位：美分，可能为浮点数）
+        let used_credits: Double?
+        /// 货币单位（如 "USD"）
+        let currency: String?
+        /// 使用率（0-100，浮点数）— 当前未使用，依赖 ExtraUsageData.percentage 计算保持一致
+        let utilization: Double?
+
+        /// 转换为统一的 ExtraUsageData
+        /// - Returns: 启用且有效则返回数据，否则返回 nil
+        func toExtraUsageData() -> ExtraUsageData? {
+            let resolvedCurrency = (currency ?? "USD").uppercased()
+            let enabled = is_enabled ?? (monthly_limit.map { $0 > 0 } ?? false)
+
+            guard enabled, let limitCents = monthly_limit, limitCents > 0 else {
+                return ExtraUsageData(
+                    enabled: false,
+                    used: nil,
+                    limit: nil,
+                    currency: resolvedCurrency
+                )
+            }
+
+            // 美分转美元
+            let limit = Double(limitCents) / 100.0
+            let used = (used_credits ?? 0.0) / 100.0
+
+            return ExtraUsageData(
+                enabled: true,
+                used: used,
+                limit: limit,
+                currency: resolvedCurrency
+            )
+        }
+    }
     
     /// 将 API 响应转换为应用内部使用的 UsageData 模型
     /// - Returns: 转换后的 UsageData 实例
     /// - Note: 会自动处理时间四舍五入，确保显示准确
+    /// - Note: Enterprise 计划下 five_hour/seven_day 等可能为 null，此时对应字段返回 nil
     func toUsageData() -> UsageData {
-        // 解析5小时限制数据
-        let fiveHourData = parseLimitData(five_hour)
+        // 解析5小时限制数据（Enterprise 下可能为 nil）
+        let fiveHourData: UsageData.LimitData? = five_hour.map { fiveHour in
+            let parsed = parseLimitData(fiveHour)
+            return UsageData.LimitData(percentage: parsed.percentage, resetsAt: parsed.resetsAt)
+        }
 
-        // 解析7天限制数据。所有 Claude 账号都有 7 天限制；
-        // 未开始使用时 API 可能返回 0 且无 resets_at，仍保留为 0% 占位。
-        let sevenDayData: UsageData.LimitData = {
-            guard let sevenDay = seven_day else {
-                return UsageData.LimitData(percentage: 0, resetsAt: nil)
-            }
+        // 解析7天限制数据（Enterprise 下可能为 nil，由调用侧决定隐藏行）
+        let sevenDayData: UsageData.LimitData? = seven_day.map { sevenDay in
             let parsed = parseLimitData(sevenDay)
             return UsageData.LimitData(percentage: parsed.percentage, resetsAt: parsed.resetsAt)
-        }()
+        }
 
         // 解析 Opus 限制数据（仅当存在且有效时）
         let opusData: UsageData.LimitData? = {
@@ -572,12 +740,15 @@ nonisolated struct UsageResponse: Codable, Sendable {
             return UsageData.LimitData(percentage: parsed.percentage, resetsAt: parsed.resetsAt)
         }()
 
+        // Enterprise 计划：从主 /usage 响应中解析内嵌的 extra_usage
+        let embeddedExtraUsage = extra_usage?.toExtraUsageData()
+
         return UsageData(
-            fiveHour: UsageData.LimitData(percentage: fiveHourData.percentage, resetsAt: fiveHourData.resetsAt),
+            fiveHour: fiveHourData,
             sevenDay: sevenDayData,
             opus: opusData,
             sonnet: sonnetData,
-            extraUsage: nil  // Extra Usage 将在阶段5通过单独的 API 获取
+            extraUsage: embeddedExtraUsage  // Enterprise 内嵌；Pro/Team 由 fetchUsage() 通过单独 API 合并
         )
     }
 

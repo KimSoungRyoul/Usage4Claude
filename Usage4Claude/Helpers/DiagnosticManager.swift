@@ -253,7 +253,7 @@ class DiagnosticManager: ObservableObject {
             errorType: nil,
             errorDescription: nil,
             responseHeaders: headers,
-            responseBodyPreview: "Valid usage data received (utilization: \(usageData.five_hour.utilization)%)",
+            responseBodyPreview: "Valid usage data received (utilization: \(usageData.five_hour.map { "\($0.utilization)" } ?? "n/a")%)",
             cloudflareChallenge: false,
             cfMitigated: headers["cf-mitigated"] != nil,
             diagnosis: DiagnosticMessage.diagnosisSuccess,

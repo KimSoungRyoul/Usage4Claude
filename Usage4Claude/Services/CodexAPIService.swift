@@ -38,7 +38,7 @@ class CodexAPIService {
 
     // MARK: - Public Methods
 
-    /// 获取 Codex 用量（两步：session → usage）
+    /// 获取 Codex 用量（两步：session → usage）— 활성 계정용
     /// - Parameter completion: 成功返回 CodexUsageData，失败返回 Error
     func fetchUsage(completion: @escaping (Result<CodexUsageData, Error>) -> Void) {
         #if DEBUG
@@ -49,15 +49,27 @@ class CodexAPIService {
         }
         #endif
 
-        cancelAllRequests()
-
         guard settings.hasValidCodexCredentials else {
             completion(.failure(UsageError.noCredentials))
             return
         }
 
-        let sessionToken = settings.codexSessionToken
+        fetchUsage(sessionToken: settings.codexSessionToken, completion: completion)
+    }
 
+    /// 임의 계정의 sessionToken으로 Codex 用量 fetch — 보조 계정용
+    /// 활성 계정 fetch와 별도 task 풀을 쓰지 않고 cancelAllRequests를 호출하지 않으므로
+    /// 동시 다계정 fetch가 가능하다.
+    func fetchUsage(account: Account, completion: @escaping (Result<CodexUsageData, Error>) -> Void) {
+        guard !account.sessionKey.isEmpty else {
+            completion(.failure(UsageError.noCredentials))
+            return
+        }
+        fetchUsage(sessionToken: account.sessionKey, completion: completion)
+    }
+
+    /// 핵심 fetch 로직 — sessionToken을 받아 두 단계 호출
+    private func fetchUsage(sessionToken: String, completion: @escaping (Result<CodexUsageData, Error>) -> Void) {
         fetchAccessToken(sessionToken: sessionToken) { [weak self] result in
             guard let self = self else { return }
 

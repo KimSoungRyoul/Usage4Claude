@@ -357,6 +357,45 @@
 "extra_usage.credits_remaining" = "還剩 %d 點";
 "extra_usage.detail_credits_balance" = "%d 點";
 "extra_usage.detail_credits_remaining" = "還剩 %d 點";
+"extra_usage.display_mode.section" = "額外用量顯示";
+"extra_usage.display_mode.label" = "顯示方式";
+"extra_usage.display_mode.hint" = "選擇以金額還是百分比顯示額外用量。";
+"extra_usage.display_mode.amount" = "金額";
+"extra_usage.display_mode.percent" = "百分比";
+"menubar_icon_style.section" = "選單列圖示風格";
+"menubar_icon_style.label" = "風格";
+"menubar_icon_style.hint" = "選擇圖形（六邊形等）或緊湊（系統監控風 — 上方帳號名，下方使用量）。緊湊模式依使用率綠→黃→紅漸變。";
+"menubar_icon_style.shape" = "圖形";
+"menubar_icon_style.compact" = "緊湊";
+"dual_accounts.section" = "選單列多帳號顯示";
+"dual_accounts.hint" = "在選單列同時顯示多個 Claude 帳號。每個帳號獨立的狀態項和樣式。";
+"dual_accounts.toggle" = "在選單列顯示";
+"dual_accounts.secondary_account_label" = "要顯示的帳號";
+"dual_accounts.not_enough_accounts" = "需要 2 個或以上 Claude 帳號。";
+"dual_accounts.current_account_tag" = "目前帳號";
+
+// MARK: - Menu Bar Display Mode (v3.1 — multi-account compactness)
+"menubar_display.section" = "選單列顯示方式";
+"menubar_display.hint" = "當存在多個帳號時,選擇選單列要如何壓縮顯示。單帳號時始終使用完整版面。";
+"menubar_display.compact" = "精簡 (帳號縮寫 + 最大值)";
+"menubar_display.compact_desc" = "僅以單一數值顯示每個帳號的最高使用率。寬度最小。";
+"menubar_display.abbreviated" = "簡略 (帳號名 + 關鍵指標)";
+"menubar_display.abbreviated_desc" = "顯示帳號名稱以及 5h/7d 等核心 limit。資訊量與寬度的平衡。";
+"menubar_display.primary_with_dots" = "活躍帳號 + 提示點";
+"menubar_display.primary_with_dots_desc" = "活躍帳號顯示完整資訊,其他帳號以彩色小點作為警示。最簡潔。";
+
+// MARK: - Per-Account Preferences (v3.1)
+"account_prefs.section" = "依帳號顯示設定";
+"account_prefs.hint" = "預設每個帳號都依照全域設定。若想為特定帳號獨立設定,選擇「為此帳號獨立設定」。";
+"account_prefs.follow_global" = "依照全域設定";
+"account_prefs.customize_per_account" = "為此帳號獨立設定";
+"account_prefs.not_enough_accounts" = "新增帳號後可在此調整每個帳號的顯示選項。";
+
+// MARK: - Unified Popover (v3.1)
+"unified.switch_action" = "切換";
+"unified.active_badge" = "目前";
+"unified.claude_section" = "Claude 帳號";
+"unified.codex_section" = "Codex 帳號";
 
 // MARK: - Loading Animation
 "loading_animation.rainbow" = "彩虹漸變";

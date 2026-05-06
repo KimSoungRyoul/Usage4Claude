@@ -357,6 +357,45 @@
 "extra_usage.credits_remaining" = "残り %d クレジット";
 "extra_usage.detail_credits_balance" = "%d クレジット";
 "extra_usage.detail_credits_remaining" = "残り %d クレジット";
+"extra_usage.display_mode.section" = "追加使用量の表示";
+"extra_usage.display_mode.label" = "表示方法";
+"extra_usage.display_mode.hint" = "追加使用量を金額で表示するかパーセントで表示するかを選択します。";
+"extra_usage.display_mode.amount" = "金額";
+"extra_usage.display_mode.percent" = "パーセント";
+"menubar_icon_style.section" = "メニューバーアイコンスタイル";
+"menubar_icon_style.label" = "スタイル";
+"menubar_icon_style.hint" = "図形（六角形など）またはコンパクト（システムモニター風 — 上にアカウント名、下に使用量）を選択。コンパクトモードでは使用量に応じて緑→黄→赤に色が変わります。";
+"menubar_icon_style.shape" = "図形";
+"menubar_icon_style.compact" = "コンパクト";
+"dual_accounts.section" = "メニューバー マルチアカウント表示";
+"dual_accounts.hint" = "複数の Claude アカウントをメニューバーに同時表示。各アカウントごとに独立したスタイル設定が可能です。";
+"dual_accounts.toggle" = "メニューバーに表示";
+"dual_accounts.secondary_account_label" = "表示するアカウント";
+"dual_accounts.not_enough_accounts" = "Claude アカウントが 2 つ以上必要です。";
+"dual_accounts.current_account_tag" = "現在のアカウント";
+
+// MARK: - Menu Bar Display Mode (v3.1 — multi-account compactness)
+"menubar_display.section" = "メニューバー表示方式";
+"menubar_display.hint" = "複数アカウントがある場合、メニューバーをどの程度圧縮するか選択します。アカウントが 1 つだけの場合は常にフル情報が表示されます。";
+"menubar_display.compact" = "コンパクト (略名 + 最大値)";
+"menubar_display.compact_desc" = "各アカウントの最も高い使用率のみを 1 つの数値で表示。最小幅。";
+"menubar_display.abbreviated" = "略式 (アカウント名 + 主要指標)";
+"menubar_display.abbreviated_desc" = "アカウント名と 5h/7d などの主要 limit を表示。情報量と幅のバランス。";
+"menubar_display.primary_with_dots" = "アクティブ + アラートドット";
+"menubar_display.primary_with_dots_desc" = "アクティブアカウントのみフル表示、その他はカラードットでアラート表示。最もシンプル。";
+
+// MARK: - Per-Account Preferences (v3.1)
+"account_prefs.section" = "アカウント別表示設定";
+"account_prefs.hint" = "デフォルトはグローバル設定に従います。特定のアカウントだけ別表示にしたい場合は「このアカウントのみカスタマイズ」を選んでください。";
+"account_prefs.follow_global" = "グローバル設定に従う";
+"account_prefs.customize_per_account" = "このアカウントのみカスタマイズ";
+"account_prefs.not_enough_accounts" = "アカウントを追加するとここでアカウント別の表示オプションを調整できます。";
+
+// MARK: - Unified Popover (v3.1)
+"unified.switch_action" = "切替";
+"unified.active_badge" = "アクティブ";
+"unified.claude_section" = "Claude アカウント";
+"unified.codex_section" = "Codex アカウント";
 
 // MARK: - Loading Animation
 "loading_animation.rainbow" = "レインボーグラデーション";

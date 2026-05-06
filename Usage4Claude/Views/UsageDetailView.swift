@@ -23,6 +23,8 @@ struct UsageDetailView: View {
     @Binding var hasAvailableUpdate: Bool
     /// 是否应显示更新徽章（用户未确认时才显示徽章）
     @Binding var shouldShowUpdateBadge: Bool
+    /// 헤더에 표시할 계정명 (듀얼 계정 popover 구분용 — nil 이면 기본 "Claude 사용 현황")
+    var accountTitleOverride: String? = nil
     
     /// 加载动画效果类型
     enum LoadingAnimationType: Int, CaseIterable {
@@ -282,11 +284,27 @@ struct UsageDetailView: View {
                         }
 
                         VStack(spacing: 2) {
-                            Text("\(Int(primary.percentage))%")
-                                .font(.system(size: 28, weight: .bold))
-                            Text(L.Usage.used)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                            // Enterprise + amount 모드: 가운데에 금액 표시
+                            // 그 외: 기존 백분율 표시
+                            if activeDisplayTypes == [.extraUsage],
+                               UserSettings.shared.extraUsageDisplayMode == .amount,
+                               let extra = data.extraUsage,
+                               let used = extra.used,
+                               let limit = extra.limit {
+                                Text("\(extra.currencySymbol)\(String(format: "%.2f", used))")
+                                    .font(.system(size: 22, weight: .bold))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.7)
+                                Text("/ \(extra.currencySymbol)\(Int(limit))")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            } else {
+                                Text("\(Int(primary.percentage))%")
+                                    .font(.system(size: 28, weight: .bold))
+                                Text(L.Usage.used)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
                         }
                     }
                 }
@@ -355,6 +373,22 @@ struct UsageDetailView: View {
                                     tintColor: .purple
                                 )
                             }
+                        } else if singleType == .extraUsage, let extra = data.extraUsage {
+                            // Enterprise 计划：仅显示 ExtraUsage 行（金额 + 百分比）
+                            VStack(spacing: 5) {
+                                UnifiedLimitRow(
+                                    type: .extraUsage,
+                                    data: data,
+                                    showRemainingMode: showRemainingMode
+                                )
+                            }
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                withAnimation(.easeInOut(duration: 0.2)) { showRemainingMode.toggle() }
+                                savedRemainingMode = showRemainingMode
+                            }
+                            // 防止编译器警告"未使用的变量"
+                            let _ = extra
                         }
                     }
                 }
@@ -503,7 +537,7 @@ struct UsageDetailView: View {
                     .frame(width: headerIconSize, height: headerIconSize)
             }
 
-            Text(provider == .claude ? L.Usage.title : L.Usage.codexTitle)
+            Text(provider == .claude ? (accountTitleOverride ?? L.Usage.title) : L.Usage.codexTitle)
                 .font(.headline)
 
             Spacer()

@@ -32,6 +32,10 @@ class DataRefreshManager: ObservableObject {
 
     /// Claude 用量数据
     @Published var usageData: UsageData?
+    /// 보조 Claude 계정들의 사용량 데이터 (currentAccount 외)
+    @Published var extraAccountUsageData: [UUID: UsageData] = [:]
+    /// 보조 Codex 계정들의 사용량 데이터 (currentCodexAccount 외)
+    @Published var extraCodexAccountUsageData: [UUID: CodexUsageData] = [:]
     /// Codex 用量数据（nil 表示无 Codex 账号或拉取失败）
     @Published var codexUsageData: CodexUsageData?
     /// 加载状态
@@ -133,6 +137,73 @@ class DataRefreshManager: ObservableObject {
     }
 
     // MARK: - Data Fetching
+
+    /// 특정 추가 계정 fetch
+    func fetchExtraAccountUsage(account: Account) {
+        guard !account.sessionKey.isEmpty, !account.organizationId.isEmpty else {
+            extraAccountUsageData[account.id] = nil
+            return
+        }
+        let accId = account.id
+        apiService.fetchUsage(organizationId: account.organizationId, sessionKey: account.sessionKey) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                switch result {
+                case .success(let data):
+                    self.extraAccountUsageData[accId] = data
+                case .failure(let error):
+                    Logger.menuBar.info("Extra Claude account fetch 실패 (\(accId)): \(error.localizedDescription)")
+                    self.extraAccountUsageData[accId] = nil
+                }
+            }
+        }
+    }
+
+    /// 모든 보조 Claude 계정 fetch (currentAccount 제외 — 통합 popover 미니 카드용)
+    func fetchAllExtraAccountsUsage() {
+        let secondaries = settings.secondaryClaudeAccounts
+        for account in secondaries {
+            fetchExtraAccountUsage(account: account)
+        }
+        // 더 이상 보조 계정 아닌 항목 정리 (활성 전환되면 그 계정은 메인으로 옮겨감)
+        let validIds = Set(secondaries.map { $0.id })
+        for key in extraAccountUsageData.keys where !validIds.contains(key) {
+            extraAccountUsageData.removeValue(forKey: key)
+        }
+    }
+
+    /// 보조 Codex 계정 한 개 fetch
+    func fetchExtraCodexAccountUsage(account: Account) {
+        guard !account.sessionKey.isEmpty else {
+            extraCodexAccountUsageData[account.id] = nil
+            return
+        }
+        let accId = account.id
+        codexApiService.fetchUsage(account: account) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                switch result {
+                case .success(let data):
+                    self.extraCodexAccountUsageData[accId] = data
+                case .failure(let error):
+                    Logger.menuBar.info("Extra Codex account fetch 실패 (\(accId)): \(error.localizedDescription)")
+                    self.extraCodexAccountUsageData[accId] = nil
+                }
+            }
+        }
+    }
+
+    /// 모든 보조 Codex 계정 fetch
+    func fetchAllExtraCodexAccountsUsage() {
+        let secondaries = settings.secondaryCodexAccounts
+        for account in secondaries {
+            fetchExtraCodexAccountUsage(account: account)
+        }
+        let validIds = Set(secondaries.map { $0.id })
+        for key in extraCodexAccountUsageData.keys where !validIds.contains(key) {
+            extraCodexAccountUsageData.removeValue(forKey: key)
+        }
+    }
 
     /// 获取用量数据（Claude + Codex 并发）
     func fetchUsage() {
@@ -255,6 +326,10 @@ class DataRefreshManager: ObservableObject {
             }
 
             self.settings.updateSmartMonitoringMode(providerUtilizations: monitoringUtilizations)
+
+            // 보조 Claude/Codex 계정들도 함께 갱신 (통합 popover 미니 카드와 멀티 메뉴바 표시용)
+            self.fetchAllExtraAccountsUsage()
+            self.fetchAllExtraCodexAccountsUsage()
         }
     }
 

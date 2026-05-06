@@ -185,6 +185,13 @@ extension UsageDetailView {
             } else if showPlaceholder {
                 return placeholderData
             }
+        } else if activeTypes.contains(.extraUsage) {
+            // Enterprise 计划：5h/7d 缺失，使用 ExtraUsage 作为主要圆环数据
+            if let extra = data.extraUsage, let pct = extra.percentage {
+                return UsageData.LimitData(percentage: pct, resetsAt: nil)
+            } else if showPlaceholder {
+                return placeholderData
+            }
         }
         // 如果没有圆形类型，返回nil
         return nil
@@ -210,6 +217,9 @@ extension UsageDetailView {
             } else {
                 return .gray
             }
+        } else if activeTypes.contains(.extraUsage) {
+            // Enterprise 计划下 ExtraUsage 作为主圆环
+            return .pink
         }
         return .gray
     }

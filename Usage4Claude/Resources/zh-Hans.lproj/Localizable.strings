@@ -355,6 +355,45 @@
 "extra_usage.credits_remaining" = "还剩 %d 点";
 "extra_usage.detail_credits_balance" = "%d 点";
 "extra_usage.detail_credits_remaining" = "还剩 %d 点";
+"extra_usage.display_mode.section" = "额外用量显示";
+"extra_usage.display_mode.label" = "显示方式";
+"extra_usage.display_mode.hint" = "选择以金额还是百分比显示额外用量。";
+"extra_usage.display_mode.amount" = "金额";
+"extra_usage.display_mode.percent" = "百分比";
+"menubar_icon_style.section" = "菜单栏图标风格";
+"menubar_icon_style.label" = "风格";
+"menubar_icon_style.hint" = "选择图形（六边形等）或紧凑（系统监控风 — 上方账号名，下方使用量）。紧凑模式根据使用率绿→黄→红渐变。";
+"menubar_icon_style.shape" = "图形";
+"menubar_icon_style.compact" = "紧凑";
+"dual_accounts.section" = "菜单栏多账号显示";
+"dual_accounts.hint" = "在菜单栏同时显示多个 Claude 账号。每个账号独立的状态项和样式。";
+"dual_accounts.toggle" = "在菜单栏显示";
+"dual_accounts.secondary_account_label" = "要显示的账号";
+"dual_accounts.not_enough_accounts" = "需要 2 个或以上 Claude 账号。";
+"dual_accounts.current_account_tag" = "当前账号";
+
+// MARK: - Menu Bar Display Mode (v3.1 — multi-account compactness)
+"menubar_display.section" = "菜单栏显示方式";
+"menubar_display.hint" = "存在多个账号时,选择菜单栏如何压缩显示。单账号时始终使用完整布局。";
+"menubar_display.compact" = "紧凑 (账号缩写 + 最大值)";
+"menubar_display.compact_desc" = "仅以单个数值显示每个账号的最高使用率。最小宽度。";
+"menubar_display.abbreviated" = "简略 (账号名 + 关键指标)";
+"menubar_display.abbreviated_desc" = "显示账号名以及 5h/7d 等核心 limit。信息量与宽度的平衡。";
+"menubar_display.primary_with_dots" = "活跃账号 + 提示点";
+"menubar_display.primary_with_dots_desc" = "活跃账号显示完整信息,其他账号以彩色小点提示。最简洁。";
+
+// MARK: - Per-Account Preferences (v3.1)
+"account_prefs.section" = "按账号显示设置";
+"account_prefs.hint" = "默认每个账号都遵循全局设置。如果想为某个账号单独设置,选择「为此账号单独设置」。";
+"account_prefs.follow_global" = "遵循全局设置";
+"account_prefs.customize_per_account" = "为此账号单独设置";
+"account_prefs.not_enough_accounts" = "添加账号后可在此调整每个账号的显示选项。";
+
+// MARK: - Unified Popover (v3.1)
+"unified.switch_action" = "切换";
+"unified.active_badge" = "当前";
+"unified.claude_section" = "Claude 账号";
+"unified.codex_section" = "Codex 账号";
 
 // MARK: - Loading Animation
 "loading_animation.rainbow" = "彩虹渐变";

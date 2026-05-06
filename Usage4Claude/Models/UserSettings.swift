@@ -234,6 +234,82 @@ enum DisplayMode: String, CaseIterable, Codable {
     }
 }
 
+/// 菜单栏图标设计风格
+enum MenuBarIconStyle: String, CaseIterable, Codable {
+    /// 图形（默认 — circle / hexagon / square / diamond）
+    case shape = "shape"
+    /// 컴팩트（系统监控风 — 上方账号名 + 下方值，类似 CPU/RAM 显示）
+    case compact = "compact"
+
+    var localizedName: String {
+        switch self {
+        case .shape: return L.MenuBarIconStyle.shape
+        case .compact: return L.MenuBarIconStyle.compact
+        }
+    }
+}
+
+/// 메뉴바 멀티 계정 표시 방식
+/// 여러 계정을 단일 status item에 어떻게 압축할지 결정한다.
+enum MenuBarDisplayMode: String, CaseIterable, Codable {
+    /// 가장 압축된 형태 — 계정명 약어 + 최댓값 1개만
+    case compact = "compact"
+    /// 약식 — 계정명 + 핵심 limit 정보
+    case abbreviated = "abbreviated"
+    /// 활성 계정 풀 정보 + 다른 계정은 색상 점으로
+    case primaryWithDots = "primary_with_dots"
+
+    var localizedName: String {
+        switch self {
+        case .compact:         return L.MenuBarDisplay.compact
+        case .abbreviated:     return L.MenuBarDisplay.abbreviated
+        case .primaryWithDots: return L.MenuBarDisplay.primaryWithDots
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .compact:         return L.MenuBarDisplay.compactDesc
+        case .abbreviated:     return L.MenuBarDisplay.abbreviatedDesc
+        case .primaryWithDots: return L.MenuBarDisplay.primaryWithDotsDesc
+        }
+    }
+}
+
+/// 계정별 표시 설정 오버라이드
+/// 각 필드가 nil이면 전역 설정을 따른다. 값이 있으면 해당 계정에만 적용.
+struct AccountPreferences: Codable, Equatable {
+    var displayMode: DisplayMode?
+    var customDisplayTypes: Set<LimitType>?
+    var extraUsageDisplayMode: ExtraUsageDisplayMode?
+    var menuBarIconStyle: MenuBarIconStyle?
+
+    /// 모든 필드가 nil — 전역 설정 그대로 사용
+    var isFollowingGlobal: Bool {
+        displayMode == nil
+            && customDisplayTypes == nil
+            && extraUsageDisplayMode == nil
+            && menuBarIconStyle == nil
+    }
+}
+
+/// ExtraUsage 表记方式（金额 vs 百分比）
+enum ExtraUsageDisplayMode: String, CaseIterable, Codable {
+    /// 金额表示（如 "$19.89/$1000"）
+    case amount = "amount"
+    /// 百分比表示（如 "2%"）
+    case percent = "percent"
+
+    var localizedName: String {
+        switch self {
+        case .amount:
+            return L.ExtraUsage.displayModeAmount
+        case .percent:
+            return L.ExtraUsage.displayModePercent
+        }
+    }
+}
+
 /// 时间格式偏好
 enum TimeFormatPreference: String, CaseIterable, Codable {
     /// 跟随系统
@@ -412,6 +488,102 @@ class UserSettings: ObservableObject {
     /// Claude 账户列表的语义别名（等同于 accounts，用于 provider-aware 代码中保持对称）
     var claudeAccounts: [Account] { accounts }
 
+    // MARK: - 멀티 계정 통합 표시 (v3.1)
+
+    /// 메뉴바에 멀티 계정을 어떻게 압축해 표시할지 선택
+    /// 단일 계정만 있을 때는 의미 없음 (UI에서 카드 자체 숨김).
+    @Published var menuBarDisplayMode: MenuBarDisplayMode {
+        didSet {
+            defaults.set(menuBarDisplayMode.rawValue, forKey: "menuBarDisplayMode")
+            NotificationCenter.default.post(name: .settingsChanged, object: nil)
+        }
+    }
+
+    /// 계정별 표시 설정 오버라이드 — 비어 있거나 키가 없으면 전역 설정 그대로 적용
+    @Published var accountPreferences: [UUID: AccountPreferences] {
+        didSet {
+            saveAccountPreferences()
+            NotificationCenter.default.post(name: .settingsChanged, object: nil)
+        }
+    }
+
+    /// 활성 계정을 제외한 보조 Claude 계정들 — 통합 popover의 미니 카드 후보
+    var secondaryClaudeAccounts: [Account] {
+        accounts.filter { $0.id != currentAccountId }
+    }
+
+    /// 활성 Codex를 제외한 보조 Codex 계정들
+    var secondaryCodexAccounts: [Account] {
+        codexAccounts.filter { $0.id != currentCodexAccountId }
+    }
+
+    /// 계정별 표시 모드 합성 (오버라이드 > 전역)
+    func resolvedDisplayMode(for accountId: UUID?) -> DisplayMode {
+        guard let id = accountId else { return displayMode }
+        return accountPreferences[id]?.displayMode ?? displayMode
+    }
+
+    /// 계정별 커스텀 limit 종류 합성
+    func resolvedCustomDisplayTypes(for accountId: UUID?) -> Set<LimitType> {
+        guard let id = accountId else { return customDisplayTypes }
+        return accountPreferences[id]?.customDisplayTypes ?? customDisplayTypes
+    }
+
+    /// 계정별 ExtraUsage 표기 방식 합성
+    func resolvedExtraUsageDisplayMode(for accountId: UUID?) -> ExtraUsageDisplayMode {
+        guard let id = accountId else { return extraUsageDisplayMode }
+        return accountPreferences[id]?.extraUsageDisplayMode ?? extraUsageDisplayMode
+    }
+
+    /// 계정별 메뉴바 아이콘 스타일 합성
+    func resolvedMenuBarIconStyle(for accountId: UUID?) -> MenuBarIconStyle {
+        guard let id = accountId else { return menuBarIconStyle }
+        return accountPreferences[id]?.menuBarIconStyle ?? menuBarIconStyle
+    }
+
+    /// 특정 계정의 오버라이드 활성화/해제
+    func setAccountFollowingGlobal(_ following: Bool, for accountId: UUID) {
+        if following {
+            accountPreferences.removeValue(forKey: accountId)
+        } else if accountPreferences[accountId] == nil {
+            // 처음 오버라이드 시 현재 전역 값을 복사해 시작점으로 제공
+            accountPreferences[accountId] = AccountPreferences(
+                displayMode: displayMode,
+                customDisplayTypes: customDisplayTypes,
+                extraUsageDisplayMode: extraUsageDisplayMode,
+                menuBarIconStyle: menuBarIconStyle
+            )
+        }
+    }
+
+    /// 특정 계정의 오버라이드 일부 필드를 수정 — 자동으로 오버라이드 활성화
+    func updateAccountPreferences(for accountId: UUID, mutate: (inout AccountPreferences) -> Void) {
+        var prefs = accountPreferences[accountId] ?? AccountPreferences()
+        mutate(&prefs)
+        accountPreferences[accountId] = prefs
+    }
+
+    private func saveAccountPreferences() {
+        let stringKeyed = accountPreferences.reduce(into: [String: AccountPreferences]()) { acc, kv in
+            acc[kv.key.uuidString] = kv.value
+        }
+        if let data = try? JSONEncoder().encode(stringKeyed) {
+            defaults.set(data, forKey: "accountPreferences")
+        }
+    }
+
+    private static func loadAccountPreferences(from defaults: UserDefaults) -> [UUID: AccountPreferences] {
+        guard let data = defaults.data(forKey: "accountPreferences"),
+              let stringKeyed = try? JSONDecoder().decode([String: AccountPreferences].self, from: data) else {
+            return [:]
+        }
+        return stringKeyed.reduce(into: [UUID: AccountPreferences]()) { acc, kv in
+            if let id = UUID(uuidString: kv.key) {
+                acc[id] = kv.value
+            }
+        }
+    }
+
     // MARK: - Codex 账户支持
 
     /// Codex 账户列表（存储在独立 Keychain key "accounts_codex" 中，不干扰 Claude 数据）
@@ -551,6 +723,23 @@ class UserSettings: ObservableObject {
             NotificationCenter.default.post(name: .settingsChanged, object: nil)
         }
     }
+
+    /// ExtraUsage 表记方式（金额 vs 百分比）
+    @Published var extraUsageDisplayMode: ExtraUsageDisplayMode {
+        didSet {
+            defaults.set(extraUsageDisplayMode.rawValue, forKey: "extraUsageDisplayMode")
+            NotificationCenter.default.post(name: .settingsChanged, object: nil)
+        }
+    }
+
+    /// 菜单栏图标设计风格（图形 vs 文字）
+    @Published var menuBarIconStyle: MenuBarIconStyle {
+        didSet {
+            defaults.set(menuBarIconStyle.rawValue, forKey: "menuBarIconStyle")
+            NotificationCenter.default.post(name: .settingsChanged, object: nil)
+        }
+    }
+
 
     /// 是否为首次启动标记
     @Published var isFirstLaunch: Bool {
@@ -936,6 +1125,40 @@ class UserSettings: ObservableObject {
             self.customDisplayTypes = [.fiveHour, .sevenDay]
         }
 
+        // 加载 ExtraUsage 表记方式，默认为金额
+        if let modeString = defaults.string(forKey: "extraUsageDisplayMode"),
+           let mode = ExtraUsageDisplayMode(rawValue: modeString) {
+            self.extraUsageDisplayMode = mode
+        } else {
+            self.extraUsageDisplayMode = .amount
+        }
+
+        // 加载菜单栏图标风格，默认 shape
+        if let styleString = defaults.string(forKey: "menuBarIconStyle"),
+           let style = MenuBarIconStyle(rawValue: styleString) {
+            self.menuBarIconStyle = style
+        } else {
+            self.menuBarIconStyle = .shape
+        }
+
+        // 메뉴바 멀티 계정 표시 방식 (v3.1)
+        if let modeString = defaults.string(forKey: "menuBarDisplayMode"),
+           let mode = MenuBarDisplayMode(rawValue: modeString) {
+            self.menuBarDisplayMode = mode
+        } else {
+            self.menuBarDisplayMode = .compact
+        }
+
+        // 계정별 표시 설정 오버라이드 (v3.1)
+        self.accountPreferences = Self.loadAccountPreferences(from: defaults)
+
+        // v3.0 호환 마이그레이션: 폐기된 키 제거 (한 번만)
+        if !defaults.bool(forKey: "v31MultiAccountMigrated") {
+            defaults.removeObject(forKey: "menuBarExtraAccountIds")
+            defaults.removeObject(forKey: "accountMenuBarStyles")
+            defaults.set(true, forKey: "v31MultiAccountMigrated")
+        }
+
         // 检查是否首次启动（如果没有保存过认证信息，就是首次启动）
         if !defaults.bool(forKey: "hasLaunched") {
             self.isFirstLaunch = true
@@ -1069,6 +1292,10 @@ class UserSettings: ObservableObject {
         timeFormatPreference = .system
         displayMode = .smart
         customDisplayTypes = [.fiveHour, .sevenDay, .extraUsage]
+        extraUsageDisplayMode = .amount
+        menuBarIconStyle = .shape
+        menuBarDisplayMode = .compact
+        accountPreferences = [:]
         notificationsEnabled = true
 
         // 重置智能模式状态
@@ -1486,9 +1713,13 @@ class UserSettings: ObservableObject {
 
             // Claude 类型：按规范顺序 fiveHour → sevenDay → extraUsage → opus → sonnet
             if let data = usageData {
-                // 5小时和7天限制始终显示，因为所有账号均受这两项限制约束
-                types.append(.fiveHour)
-                types.append(.sevenDay)
+                // Pro/Team 默认显示 5h/7d；Enterprise 计划下接口返回 null，对应行隐藏
+                if data.fiveHour != nil {
+                    types.append(.fiveHour)
+                }
+                if data.sevenDay != nil {
+                    types.append(.sevenDay)
+                }
                 if data.extraUsage?.enabled == true {
                     types.append(.extraUsage)
                 }
@@ -1514,8 +1745,8 @@ class UserSettings: ObservableObject {
             return types
 
         case .custom:
-            // 自定义模式：按用户选择排序，无论数据是否存在都显示
-            // Codex 类型仅在有 Codex 账号时纳入候选；Debug mock 模式例外
+            // 自定义模式：按用户选择排序
+            // 단, 데이터가 진짜로 nil 인 한도(Enterprise 의 5h/7d 등)는 placeholder 로도 표시 안 함
             var orderedTypes: [LimitType] = [.fiveHour, .sevenDay, .extraUsage, .opusWeekly, .sonnetWeekly]
             var shouldIncludeCodexTypes = !codexAccounts.isEmpty
             #if DEBUG
@@ -1526,7 +1757,28 @@ class UserSettings: ObservableObject {
             if shouldIncludeCodexTypes {
                 orderedTypes.append(contentsOf: [.codexPrimary, .codexSecondary, .codexExtraUsage])
             }
-            return orderedTypes.filter { customDisplayTypes.contains($0) }
+            return orderedTypes.filter { type in
+                guard customDisplayTypes.contains(type) else { return false }
+                // 데이터 가용성 검증 (Enterprise 등 일부 한도가 null 일 수 있음)
+                switch type {
+                case .fiveHour:
+                    return usageData?.fiveHour != nil
+                case .sevenDay:
+                    return usageData?.sevenDay != nil
+                case .opusWeekly:
+                    return usageData?.opus != nil
+                case .sonnetWeekly:
+                    return usageData?.sonnet != nil
+                case .extraUsage:
+                    return usageData?.extraUsage?.enabled == true
+                case .codexPrimary:
+                    return codexUsageData?.primary != nil
+                case .codexSecondary:
+                    return codexUsageData?.secondary != nil
+                case .codexExtraUsage:
+                    return codexUsageData?.extraUsage?.enabled == true
+                }
+            }
         }
     }
 
