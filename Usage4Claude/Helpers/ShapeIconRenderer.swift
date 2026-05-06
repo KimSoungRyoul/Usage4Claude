@@ -715,18 +715,18 @@ class ShapeIconRenderer {
         let labelFont = NSFont.systemFont(ofSize: 9, weight: .medium)
         let valueFont = NSFont.systemFont(ofSize: 11, weight: .semibold)
         let labelColor = NSColor.secondaryLabelColor
-        let separator: CGFloat = 8 // 계정 간 가로 간격
-        let valueGap: CGFloat = 3  // 라벨과 값 사이 간격
+        let separator: CGFloat = 6 // 계정 간 가로 간격
         let height: CGFloat = 22
 
+        // 빈 라벨은 값만 단독 표시 — 활성 계정용 (가로 폭 절약)
         // 너비 계산
         var totalWidth: CGFloat = 0
         var sizes: [(labelW: CGFloat, valueW: CGFloat)] = []
         for item in items {
-            let lw = (item.label as NSString).size(withAttributes: [.font: labelFont]).width
+            let lw: CGFloat = item.label.isEmpty ? 0 : (item.label as NSString).size(withAttributes: [.font: labelFont]).width
             let vw = (item.value as NSString).size(withAttributes: [.font: valueFont]).width
             sizes.append((lw, vw))
-            totalWidth += lw + valueGap + vw + separator
+            totalWidth += max(lw, vw) + separator
         }
         totalWidth -= separator // 마지막 separator 제거
         totalWidth += 4 // 좌우 여백
@@ -736,6 +736,7 @@ class ShapeIconRenderer {
 
         var x: CGFloat = 2
         for (i, item) in items.enumerated() {
+            let columnWidth = max(sizes[i].labelW, sizes[i].valueW)
             let labelAttrs: [NSAttributedString.Key: Any] = [
                 .font: labelFont,
                 .foregroundColor: isMonochrome ? NSColor.labelColor : labelColor
@@ -744,14 +745,20 @@ class ShapeIconRenderer {
                 .font: valueFont,
                 .foregroundColor: isMonochrome ? NSColor.labelColor : item.color
             ]
-            let labelRect = NSRect(x: x, y: height - 11, width: sizes[i].labelW, height: 10)
-            (item.label as NSString).draw(in: labelRect, withAttributes: labelAttrs)
 
-            let valueRect = NSRect(x: x, y: 2, width: sizes[i].labelW + valueGap + sizes[i].valueW, height: 12)
-            // 라벨 아래에 값 (라벨이 짧고 값이 길면 미세하게 좌측 정렬)
-            (item.value as NSString).draw(in: valueRect, withAttributes: valueAttrs)
+            if item.label.isEmpty {
+                // 라벨 없으면 값을 세로 중앙에 단독 배치
+                let valueRect = NSRect(x: x, y: 5, width: columnWidth, height: 14)
+                (item.value as NSString).draw(in: valueRect, withAttributes: valueAttrs)
+            } else {
+                // 라벨이 있으면 위 라벨 + 아래 값 (시스템 모니터 풍)
+                let labelRect = NSRect(x: x, y: height - 11, width: columnWidth, height: 10)
+                (item.label as NSString).draw(in: labelRect, withAttributes: labelAttrs)
+                let valueRect = NSRect(x: x, y: 2, width: columnWidth, height: 12)
+                (item.value as NSString).draw(in: valueRect, withAttributes: valueAttrs)
+            }
 
-            x += sizes[i].labelW + valueGap + sizes[i].valueW + separator
+            x += columnWidth + separator
         }
 
         image.unlockFocus()
